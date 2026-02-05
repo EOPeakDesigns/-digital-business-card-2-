@@ -22,7 +22,9 @@ A modern digital business card built to convert visitors into real inquiries. It
 - QR code experience: quick open/share + download when needed (ideal for real-world networking).
 - App-like usage (PWA): can be added to the home screen for instant access like an app.
 - Smart social experience: on mobile, social buttons open the native apps when installed; otherwise they open in the browser automatically.
-- Polished interactions: avoids “stuck hover/pressed” states for a clean, premium feel.
+- Intelligent app fallback: if social media apps aren't installed, users get a modal with options to download from Play Store/App Store or open in browser (appears within 2 seconds).
+- Gmail app integration: automatically opens Gmail app with pre-filled subject and body, with smart fallback to mailto or web.
+- Polished interactions: avoids "stuck hover/pressed" states for a clean, premium feel.
 
 --------------------------------
 2) المميزات والقيمة للعميل (AR)
@@ -33,7 +35,9 @@ A modern digital business card built to convert visitors into real inquiries. It
 - تجربة QR Code عملية: فتح/مشاركة سريعة مع إمكانية تنزيل الكود عند الحاجة.
 - استخدام كتطبيق (PWA): يمكن إضافتها للشاشة الرئيسية للوصول الفوري مثل التطبيقات.
 - تجربة سوشيال ذكية: على الموبايل، الأزرار تفتح التطبيقات مباشرةً عند توفرها، وإن لم تكن موجودة تفتح الرابط في المتصفح تلقائياً.
-- تفاعلات مصقولة: بدون تأثير “الضغط/الهوفر العالق” لتجربة فاخرة ونظيفة.
+- نظام ذكي للبدائل: إذا لم تكن تطبيقات السوشيال مثبتة، يظهر للمستخدم نافذة خيارات للتنزيل من متجر التطبيقات أو الفتح في المتصفح (يظهر خلال ثانيتين).
+- تكامل مع تطبيق Gmail: يفتح تطبيق Gmail تلقائياً مع موضوع ونص مسبق الإعداد، مع بديل ذكي للبريد الإلكتروني أو الويب.
+- تفاعلات مصقولة: بدون تأثير "الضغط/الهوفر العالق" لتجربة فاخرة ونظيفة.
 
 
 --------------------------------
@@ -54,6 +58,9 @@ Prefer something you can hand out in person too? We can also design premium phys
 - Responsive design system (design tokens + mobile-first breakpoints)
 - vCard / VCF (Add to Contacts)
 - PWA (Installable + offline-ready via manifest + service worker)
+- Smart deep linking (app scheme detection with intelligent fallback)
+- App store integration (Play Store / App Store URLs)
+- Cross-platform detection (iOS / Android / Desktop)
 
 --------------------------------
 4) التقنيات المستخدمة (AR)
@@ -62,5 +69,8 @@ Prefer something you can hand out in person too? We can also design premium phys
 - نظام استجابة (Design Tokens + نقاط موبايل أولاً)
 - vCard / VCF (إضافة إلى جهات الاتصال)
 - PWA (قابل للتثبيت + جاهز دون إنترنت عبر Manifest + Service Worker)
+- ربط عميق ذكي (كشف مخططات التطبيقات مع بديل ذكي)
+- تكامل مع متاجر التطبيقات (روابط Play Store / App Store)
+- كشف متعدد المنصات (iOS / Android / Desktop)
 
 

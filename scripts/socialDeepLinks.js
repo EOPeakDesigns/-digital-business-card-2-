@@ -389,11 +389,27 @@
     };
     
     const onBlur = () => {
-      didBlur = true;
-      // If page blurred, app likely opened - wait a bit then cleanup
-      visibilityTimer = setTimeout(() => {
+      // On Android, blur can fire even if app doesn't open
+      // So we need to be more careful - only mark as blurred if page actually becomes hidden
+      // Don't immediately mark as success - wait to see if page becomes hidden
+      if (document.hidden) {
+        didBlur = true;
+        didHide = true;
         cleanup();
-      }, 500);
+      } else {
+        // Page blurred but not hidden - might be false positive
+        // Set a short timer to check if page actually becomes hidden
+        visibilityTimer = setTimeout(() => {
+          if (document.hidden) {
+            didBlur = true;
+            didHide = true;
+            cleanup();
+          } else {
+            // False positive - page didn't actually hide, app didn't open
+            didBlur = false;
+          }
+        }, 300);
+      }
     };
     
     const cleanup = () => {
@@ -424,34 +440,39 @@
 
     /**
      * Attempt to open URL (app or fallback)
-     * Uses iframe method for app schemes to prevent page navigation
-     * This allows us to detect if app opened without losing page control
+     * Uses improved method for better Android compatibility
      */
     const attemptOpen = (url) => {
-      // For app schemes (instagram://, fb://, etc.), use iframe method
-      // This prevents automatic page navigation and allows us to detect app opening
+      // For app schemes (instagram://, fb://, etc.), use window.location
+      // This is more reliable on Android - if app opens, page will blur/hide
+      // If app doesn't open, nothing happens and we can detect it
       if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
-        // App scheme detected - use iframe method (doesn't navigate page)
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.style.width = '0';
-        iframe.style.height = '0';
-        iframe.style.border = 'none';
-        iframe.style.position = 'absolute';
-        iframe.style.left = '-9999px';
-        iframe.src = url;
-        document.body.appendChild(iframe);
-        
-        // Remove iframe after attempt
-        setTimeout(() => {
-          try {
-            if (iframe.parentNode) {
-              document.body.removeChild(iframe);
+        // App scheme detected - try to open app
+        // On Android, this will either open the app (page blurs) or do nothing
+        try {
+          // Store timestamp to detect if page actually navigated
+          const startTime = Date.now();
+          window.location.href = url;
+          
+          // If we're still here after a short delay, app likely didn't open
+          // But we'll let the main timeout handle the detection
+        } catch (e) {
+          // If direct navigation fails, try creating a link
+          const link = document.createElement('a');
+          link.href = url;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            try {
+              if (link.parentNode) {
+                document.body.removeChild(link);
+              }
+            } catch (err) {
+              // Ignore cleanup errors
             }
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-        }, 1000);
+          }, 100);
+        }
       } else {
         // For http/https/mailto URLs, use standard navigation
         try {
@@ -481,14 +502,19 @@
 
     // Smart fallback timing: 
     // - Desktop: Very short timeout (apps won't open, fail fast)
-    // - Mobile: Longer timeout to give apps time to open
-    // - Increased timeout for better detection accuracy
-    const fallbackDelay = isDesktop() ? 800 : (isIOS() ? 2500 : 3500);
+    // - Mobile: Ultra-fast timeout for instant user feedback (1 second)
+    // - Optimized for best user experience - modal appears almost instantly
+    const fallbackDelay = isDesktop() ? 500 : (isIOS() ? 1000 : 1000);
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
-      // Only fallback if page is still visible and didn't blur (app didn't open)
-      if (!didHide && !didBlur && !document.hidden) {
+      // CRITICAL: Check if app actually opened by verifying page is hidden
+      // On Android, blur events can fire even when app doesn't open
+      // So we check document.hidden as the definitive indicator
+      const appActuallyOpened = document.hidden || didHide;
+      
+      // Only show modal/fallback if app didn't actually open
+      if (!appActuallyOpened) {
         attemptCount++;
         
         // For email: try mailto: fallback first
@@ -498,11 +524,12 @@
           
           // Set another timer for final web fallback or modal
           setTimeout(() => {
-            if (!didHide && !didBlur && !document.hidden) {
+            // Check again if app opened
+            if (!document.hidden && !didHide) {
               // Show download modal for email
               showAppDownloadModal('email', finalWebUrl);
             }
-          }, 2000);
+          }, 1000); // Reduced to 1 second for faster response
         } else {
           // For social media or if mailto failed: show download modal
           // Use passed platform parameter or extract from context
@@ -514,14 +541,38 @@
           
           if (detectedPlatform && isMobile()) {
             // On mobile: show download modal with app store options
+            // CRITICAL: Always show modal on mobile when app doesn't open
             showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
           } else {
             // On desktop or no platform detected: go directly to web
             window.location.href = finalWebUrl;
           }
         }
+      } else {
+        // App opened successfully - no action needed
+        // Cleanup already handled by onHide/onBlur
       }
     }, fallbackDelay);
+    
+    // SAFETY NET: If for any reason the main timeout doesn't trigger the modal,
+    // add an additional timeout as a backup (only on mobile)
+    if (isMobile() && platform) {
+      const safetyNetDelay = fallbackDelay + 500; // 0.5 seconds after main timeout (ultra-fast backup)
+      setTimeout(() => {
+        // Double-check: if modal is not visible and page is still visible, show modal
+        const modal = document.getElementById('app-download-modal');
+        const isModalVisible = modal && modal.classList.contains('active');
+        
+        if (!isModalVisible && !document.hidden && !didHide) {
+          // Modal didn't show and app didn't open - show it now
+          const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
+          const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
+          if (detectedPlatform) {
+            showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
+          }
+        }
+      }, safetyNetDelay);
+    }
   };
 
   /**
