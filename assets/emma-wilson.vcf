@@ -1,0 +1,12 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Wilson;Emma;;;
+FN:Emma Wilson
+TITLE:Photographer
+TEL;TYPE=CELL,VOICE:+1-555-123-4567
+EMAIL;TYPE=INTERNET:ewilson@gmail.com
+URL:https://www.emmawilson.com
+ADR;TYPE=WORK:;;123 Main Street;New York;NY;10001;USA
+NOTE:Digital business card contact
+END:VCARD
+
