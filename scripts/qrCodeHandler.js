@@ -320,6 +320,26 @@ class QRCodeHandler {
    * Initialize console interaction handlers to prevent unwanted focus states
    */
   initConsoleInteractionHandlers() {
+    const getActionableEl = (target) => {
+      if (!target || typeof target.closest !== 'function') return null;
+      return target.closest('.contact-button, .contact-primary, .contact-action, .social-icon');
+    };
+
+    const blurActionable = (target) => {
+      const actionable = getActionableEl(target);
+      if (!actionable) return;
+
+      // Blur the actionable element (if focusable) and any focused element inside the row.
+      if (typeof actionable.blur === 'function') actionable.blur();
+
+      const row = actionable.closest('.contact-button, .contact-item');
+      if (row && typeof row.querySelectorAll === 'function') {
+        row.querySelectorAll('a, button, [tabindex]:not([tabindex="-1"])').forEach((el) => {
+          if (document.activeElement === el && typeof el.blur === 'function') el.blur();
+        });
+      }
+    };
+
     // Handle visibility change (console open/close)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
@@ -338,78 +358,37 @@ class QRCodeHandler {
 
     // Handle mouse events to ensure proper hover behavior (desktop)
     document.addEventListener('mouseover', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        // Clear any existing focus when hovering
-        e.target.blur();
-      }
+      // Clear any existing focus when hovering over actionable UI
+      blurActionable(e.target);
     });
 
     // Handle touch events for mobile focus clearing (no visual feedback)
     document.addEventListener('touchstart', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        // Clear any existing focus when touching
-        e.target.blur();
-        const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-        if (row) {
-          row.blur();
-        }
-      }
+      blurActionable(e.target);
     });
 
     document.addEventListener('touchend', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        // Clear focus after touch interaction completes
-        setTimeout(() => {
-          e.target.blur();
-          const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-          if (row) {
-            row.blur();
-          }
-        }, 100);
-      }
+      // Clear focus after touch interaction completes
+      setTimeout(() => blurActionable(e.target), 100);
     });
 
     document.addEventListener('touchcancel', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        e.target.blur();
-        const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-        if (row) {
-          row.blur();
-        }
-      }
+      blurActionable(e.target);
     });
 
     // Handle click events to clear focus after interaction (mobile and desktop)
     document.addEventListener('click', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        // Clear focus after click interaction with multiple attempts
-        setTimeout(() => {
-          e.target.blur();
-          const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-          if (row) {
-            row.blur();
-          }
-        }, 100);
-        
-        setTimeout(() => {
-          e.target.blur();
-          const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-          if (row) {
-            row.blur();
-          }
-        }, 300);
-      }
+      // For keyboard-activated clicks (Enter/Space), keep focus for accessibility.
+      if (typeof e.detail === 'number' && e.detail === 0) return;
+
+      // Clear focus after click interaction with multiple attempts (covers sticky focus)
+      setTimeout(() => blurActionable(e.target), 50);
+      setTimeout(() => blurActionable(e.target), 200);
     });
 
     // Additional mobile-specific focus clearing
     document.addEventListener('touchcancel', (e) => {
-      if (e.target && (e.target.classList.contains('contact-button') || e.target.classList.contains('contact-primary') || e.target.classList.contains('social-icon'))) {
-        e.target.blur();
-        const row = e.target.closest('.contact-button, .contact-item, .contact-primary');
-        if (row) {
-          row.blur();
-        }
-      }
+      blurActionable(e.target);
     });
   }
 
@@ -417,11 +396,9 @@ class QRCodeHandler {
    * Clear focus from all contact buttons
    */
   clearContactButtonFocus() {
-    const contactButtons = document.querySelectorAll('.contact-button');
-    contactButtons.forEach(button => {
-      if (document.activeElement === button) {
-        button.blur();
-      }
+    const focusables = document.querySelectorAll('.contact-button, .contact-primary, .contact-action');
+    focusables.forEach((el) => {
+      if (document.activeElement === el && typeof el.blur === 'function') el.blur();
     });
   }
 
