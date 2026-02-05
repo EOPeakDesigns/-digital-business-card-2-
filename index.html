@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Emma Wilson Photography | Digital Business Card</title>
+
+  <!-- PWA / Installability -->
+  <meta name="theme-color" content="#F4C542">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Emma Wilson">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/pwa-192.svg">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iI2Y3YTliOCIvPgogIDxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjEyIiBmaWxsPSIjRjRDNTQyIi8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTAiIGZpbGw9IiNmN2E5YjgiLz4KICA8dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJNb250c2VycmF0LCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iNzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDAwMDAwIj5FVzwvdGV4dD4KPC9zdmc+">
+  <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iI2Y3YTliOCIvPgogIDxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjEyIiBmaWxsPSIjRjRDNTQyIi8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTAiIGZpbGw9IiNmN2E5YjgiLz4KICA8dGV4dCB4PSIxNiIgeT0iMjAiIGZvbnQtZmFtaWx5PSJNb250c2VycmF0LCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iNzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjMDAwMDAwIj5FVzwvdGV4dD4KPC9zdmc+">
+  
+  <!-- External Dependencies -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+  <main class="card" id="app-card">
+    <header class="header">
+      <div class="header-content">
+        <div class="camera-icon">
+          <i class="fa-solid fa-camera"></i>
+        </div>
+      </div>
+      <img src="assets/owner.png" alt="Emma Wilson" class="profile-image">
+    </header>
+
+    <section class="body-section">
+      <h1 class="name">Emma Wilson</h1>
+      <h2 class="title">Photographer</h2>
+      <p class="bio">Professional photographer specializing in portraits, events, and commercial work. Creating extraordinary memories with artistic vision.</p>
+    </section>
+
+    <section class="contact-section">
+      <div class="contact-item">
+        <a href="https://wa.me/15551234567" class="contact-primary" target="_blank" rel="noopener noreferrer" aria-label="Open WhatsApp chat">
+          <i class="fa-brands fa-whatsapp contact-icon" aria-hidden="true"></i>
+          <span class="contact-text">+1-555-123-4567</span>
+        </a>
+        <button type="button" class="contact-action vcard-action" id="add-to-contacts" aria-label="Add to contacts">
+          <i class="fa-solid fa-address-card" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <a href="https://www.emmawilson.com" target="_blank" rel="noopener noreferrer" class="contact-button">
+        <i class="fa-solid fa-globe contact-icon"></i>
+        <span class="contact-text">www.emmawilson.com</span>
+      </a>
+
+      <a href="https://mail.google.com/mail/?view=cm&fs=1&to=ewilson@gmail.com" class="contact-button" target="_blank" rel="noopener noreferrer">
+        <i class="fa-solid fa-envelope contact-icon"></i>
+        <span class="contact-text">ewilson@gmail.com</span>
+        <i class="fa-solid fa-copy copy-icon" data-copy="ewilson@gmail.com" aria-label="Copy email address" role="button" tabindex="0"></i>
+      </a>
+
+      <a href="https://maps.google.com/?q=123+Main+Street,+New+York,+NY+10001" target="_blank" rel="noopener noreferrer" class="contact-button">
+        <i class="fa-solid fa-map-marker-alt contact-icon"></i>
+        <span class="contact-text">123 Main Street, New York, NY 10001</span>
+      </a>
+
+    </section>
+
+    <footer class="footer">
+      <a href="https://facebook.com/emmawilsonphoto" target="_blank" rel="noopener noreferrer" class="social-icon facebook" aria-label="Facebook">
+        <i class="fa-brands fa-facebook-f"></i>
+      </a>
+      
+      <a href="https://instagram.com/emmawilsonphoto" target="_blank" rel="noopener noreferrer" class="social-icon instagram" aria-label="Instagram">
+        <i class="fa-brands fa-instagram"></i>
+      </a>
+      
+      <a href="https://twitter.com/emmawilsonphoto" target="_blank" rel="noopener noreferrer" class="social-icon twitter" aria-label="Twitter">
+        <i class="fa-brands fa-x-twitter"></i>
+      </a>
+      
+      <a href="https://linkedin.com/in/emmawilsonphoto" target="_blank" rel="noopener noreferrer" class="social-icon linkedin" aria-label="LinkedIn">
+        <i class="fa-brands fa-linkedin-in"></i>
+      </a>
+      
+      <button type="button" class="social-icon qr-icon" id="qr-code" aria-label="QR Code">
+        <i class="fa-solid fa-qrcode"></i>
+      </button>
+    </footer>
+
+  </main>
+
+  <!-- QR Code Modal -->
+  <div id="qr-modal" class="qr-modal" role="dialog" aria-modal="true" aria-labelledby="qr-modal-title" aria-hidden="true">
+    <div class="qr-modal-overlay"></div>
+    <div class="qr-modal-content">
+      <div class="qr-modal-header">
+        <h3 id="qr-modal-title" class="qr-modal-title">QR Code</h3>
+        <button class="qr-modal-close" aria-label="Close QR Code">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div class="qr-modal-body">
+        <div class="qr-code-container">
+          <img src="assets/MYQR.png" alt="Emma Wilson Digital Business Card QR Code" class="qr-code-image">
+        </div>
+        <div class="qr-modal-actions">
+          <button class="qr-download-btn" id="qr-download-btn">
+            <i class="fa-solid fa-download"></i>
+            Download QR Code
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen-reader announcements (non-visual) -->
+  <div class="sr-only" id="a11y-status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Application Scripts -->
+  <script src="scripts/copyToClipboard.js"></script>
+  <script src="scripts/qrCodeHandler.js"></script>
+  <script src="scripts/vCardHandler.js"></script>
+  <script src="scripts/pwa.js"></script>
+</body>
+</html>

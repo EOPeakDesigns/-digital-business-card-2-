@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- Background circle with pink color -->
+  <circle cx="96" cy="96" r="96" fill="#f7a9b8"/>
+  <!-- Yellow accent circle -->
+  <circle cx="96" cy="96" r="72" fill="#F4C542"/>
+  <!-- Inner circle for text background -->
+  <circle cx="96" cy="96" r="60" fill="#f7a9b8"/>
+  <!-- Text "EW" -->
+  <text x="96" y="120" font-family="Montserrat, sans-serif" font-size="72" font-weight="700" text-anchor="middle" fill="#000000">EW</text>
+</svg>
+

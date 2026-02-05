@@ -1,0 +1,965 @@
+/* ========================================
+   EMMA WILSON PHOTOGRAPHY - MAIN STYLES
+   ======================================== */
+
+/* CSS Custom Properties (Design Tokens) */
+:root {
+  --pink-bg: #f7a9b8;
+  --yellow: #F4C542;
+  --black: #000000;
+  --white: #ffffff;
+  --gray: #666666;
+  --light-gray: #f5f5f5;
+  --shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  --shadow-hover: 0 6px 15px rgba(0, 0, 0, 0.15);
+  --border-radius: 20px;
+  --btn-radius: 50px;
+  --transition: all 0.3s ease;
+  
+  /* Responsive spacing variables - will be adjusted via media queries */
+  --body-padding: 20px;
+  --card-max-width: 420px;
+  --header-padding-x: 20px;
+  --header-padding-y: 20px;
+  --header-padding-bottom: 40px;
+  --header-min-height: 120px;
+  --profile-image-size: 130px;
+  --profile-image-bottom: -65px;
+  --profile-image-scale: 0.85;
+  --profile-image-border: 4px;
+  --body-padding-top: 85px;
+  --body-padding-x: 30px;
+  --body-padding-bottom: 20px;
+  --name-font-size: 24px;
+  --title-font-size: 16px;
+  --bio-font-size: 14px;
+  --contact-padding-x: 30px;
+  --contact-padding-bottom: 20px;
+  --contact-button-height: 50px;
+  --contact-button-padding-x: 20px;
+  --contact-button-gap: 12px;
+  --contact-icon-size: 18px;
+  --contact-icon-width: 20px;
+  --copy-icon-right: 20px;
+  --footer-padding: 20px;
+  --footer-gap: 30px;
+  --social-icon-size: 40px;
+  --social-icon-font-size: 20px;
+  --camera-icon-size: 1.5rem;
+}
+
+/* Accessibility: Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Global Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+  background-color: var(--pink-bg);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Use dynamic viewport units on modern mobile browsers to avoid "address bar" jumps */
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Safe-area padding for notch devices (falls back to 0 on non-notch) */
+  padding: calc(var(--body-padding) + env(safe-area-inset-top))
+           calc(var(--body-padding) + env(safe-area-inset-right))
+           calc(var(--body-padding) + env(safe-area-inset-bottom))
+           calc(var(--body-padding) + env(safe-area-inset-left));
+}
+
+/* Accessible utility: visually hidden but screen-reader available */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ========================================
+   CARD COMPONENT
+   ======================================== */
+.card {
+  max-width: var(--card-max-width);
+  width: 100%;
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ========================================
+   HEADER COMPONENT
+   ======================================== */
+.header {
+  background-color: var(--black) !important;
+  background-image: url('../assets/background.png') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-attachment: scroll !important;
+  padding: var(--header-padding-y) var(--header-padding-x) var(--header-padding-bottom) var(--header-padding-x);
+  position: relative;
+  min-height: var(--header-min-height);
+  width: 100%;
+  display: block;
+}
+
+.header-content {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.camera-icon {
+  color: var(--yellow);
+  font-size: var(--camera-icon-size);
+}
+
+/* ========================================
+   PROFILE IMAGE (Now part of header)
+   ======================================== */
+.profile-image {
+  width: var(--profile-image-size);
+  height: var(--profile-image-size);
+  border-radius: 50%;
+  position: absolute;
+  bottom: var(--profile-image-bottom);
+  left: 50%;
+  transform: translateX(-50%) scale(var(--profile-image-scale));
+  object-fit: contain;
+  /* Pink background to match card surroundings */
+  background-color: var(--pink-bg);
+  /* Circular white frame around the image */
+  border: var(--profile-image-border) solid var(--white);
+  /* Ensure image is fully visible within circular frame */
+  z-index: 2;
+  /* Enhanced shadow for professional depth */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Split-circle border frame container */
+.profile-image::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--profile-image-border) * -1.25);
+  left: calc(var(--profile-image-border) * -1.25);
+  right: calc(var(--profile-image-border) * -1.25);
+  bottom: calc(var(--profile-image-border) * -1.25);
+  border-radius: 50%;
+  /* Split-circle border effect: top half black, bottom half yellow */
+  background: linear-gradient(to bottom, var(--black) 50%, var(--yellow) 50%);
+  z-index: -1;
+}
+
+/* ========================================
+   BODY SECTION COMPONENT
+   ======================================== */
+.body-section {
+  background-color: var(--yellow);
+  padding: var(--body-padding-top) var(--body-padding-x) var(--body-padding-bottom);
+  text-align: center;
+  /* Ensure proper spacing for split-circle image overlap */
+  position: relative;
+  z-index: 1;
+}
+
+.name {
+  font-size: var(--name-font-size);
+  font-weight: bold;
+  color: var(--black);
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: var(--title-font-size);
+  font-style: italic;
+  color: var(--gray);
+  margin-bottom: 12px;
+}
+
+.bio {
+  font-size: var(--bio-font-size);
+  color: var(--gray);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+/* ========================================
+   CONTACT SECTION COMPONENT
+   ======================================== */
+.contact-section {
+  background-color: var(--yellow);
+  padding: 0 var(--contact-padding-x) var(--contact-padding-bottom);
+}
+
+.contact-button,
+.contact-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  background-color: var(--white);
+  color: var(--black);
+  padding: 0 var(--contact-button-padding-x);
+  height: var(--contact-button-height);
+  margin-bottom: 12px;
+  border-radius: var(--btn-radius);
+  text-decoration: none;
+  transition: var(--transition);
+  position: relative;
+  gap: var(--contact-button-gap);
+  outline: none;
+}
+
+.contact-button:hover, 
+.contact-button:focus,
+.contact-item:hover,
+.contact-item:focus-within {
+  background-color: var(--light-gray);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+/* Ensure hover effect works even when copy icon is present */
+.contact-button:hover .copy-icon {
+  opacity: 1;
+}
+
+.contact-primary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--contact-button-gap);
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  outline: none;
+}
+
+.contact-icon {
+  font-size: var(--contact-icon-size);
+  color: var(--gray);
+  flex-shrink: 0;
+  width: var(--contact-icon-width);
+  text-align: center;
+}
+
+.contact-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.copy-icon {
+  position: absolute;
+  right: var(--copy-icon-right);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.copy-icon:hover {
+  opacity: 1;
+}
+
+/* Action buttons inside a contact row (e.g., Add to Contacts) */
+.contact-action {
+  width: 44px; /* comfortable touch target */
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--gray);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.contact-action:hover,
+.contact-action:focus-visible {
+  color: var(--black);
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Copy button checkmark indication */
+.copy-icon.copied {
+  color: var(--yellow);
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.copy-icon.copied::before {
+  content: '\f00c'; /* FontAwesome check icon */
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--yellow);
+  border-radius: 50%;
+  color: var(--black);
+  font-size: 12px;
+  animation: checkmarkPulse 0.6s ease-in-out;
+}
+
+@keyframes checkmarkPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ========================================
+   FOOTER COMPONENT
+   ======================================== */
+.footer {
+  background-color: var(--yellow);
+  padding: var(--footer-padding);
+  display: flex;
+  justify-content: center;
+  gap: var(--footer-gap);
+  flex-wrap: wrap;
+}
+
+.social-icon {
+  width: var(--social-icon-size);
+  height: var(--social-icon-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--social-icon-font-size);
+  color: var(--black);
+  border-radius: 5px;
+  transition: var(--transition);
+  flex-shrink: 0;
+  /* Remove default browser focus outline (often renders as a black frame) */
+  outline: none;
+}
+
+/* Ensure consistent appearance for social icons whether they are <a> or <button> */
+button.social-icon {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Hover is a mouse affordance; focus-visible is a keyboard affordance */
+.social-icon:hover {
+  transform: scale(1.1);
+}
+
+/* Accessible focus ring (keyboard only) - replaces the default black outline */
+.social-icon:focus-visible {
+  box-shadow: 0 0 0 3px rgba(244, 197, 66, 0.75);
+}
+
+
+/* Mobile-specific: Disable all hover effects on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  /* Disable contact button hover effects */
+  .contact-button:hover,
+  .contact-button:focus {
+    background-color: var(--white);
+    box-shadow: none;
+    transform: none;
+  }
+  
+  .contact-item:hover,
+  .contact-item:focus-within {
+    background-color: var(--white);
+    box-shadow: none;
+    transform: none;
+  }
+  
+  .contact-button:hover .copy-icon,
+  .contact-button:focus .copy-icon {
+    opacity: 0.6;
+  }
+
+  .contact-action:hover,
+  .contact-action:focus-visible {
+    background-color: transparent;
+    color: var(--gray);
+    transform: none;
+  }
+  
+  /* Disable social icon hover effects */
+  .social-icon:hover,
+  .social-icon:focus-visible {
+    transform: none;
+  }
+  
+  /* Disable social media brand color changes on hover */
+  .facebook:hover,
+  .facebook:focus {
+    color: var(--black);
+  }
+  
+  .twitter:hover,
+  .twitter:focus {
+    color: var(--black);
+  }
+  
+  .instagram:hover,
+  .instagram:focus {
+    color: var(--black);
+  }
+  
+  .linkedin:hover,
+  .linkedin:focus {
+    color: var(--black);
+  }
+  
+  .qr-icon:hover,
+  .qr-icon:focus-visible {
+    color: var(--black);
+  }
+  
+  /* Disable QR download button hover effects on touch devices */
+  /* Use !important to ensure these rules override hover state that persists after touch */
+  .qr-download-btn:hover,
+  .qr-download-btn:focus,
+  .qr-download-btn:active {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  
+  /* Ensure button always returns to default state after any interaction */
+  .qr-download-btn:not(:disabled) {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+  }
+  
+  /* Disable QR modal close button hover effects on touch devices */
+  .qr-modal-close:hover,
+  .qr-modal-close:focus {
+    background-color: transparent;
+    transform: none;
+  }
+}
+
+/* Social Media Brand Colors - Desktop only */
+@media (hover: hover) {
+  .facebook:hover, 
+  .facebook:focus-visible {
+    color: #1877F2;
+  }
+
+  .twitter:hover, 
+  .twitter:focus-visible {
+    color: #1DA1F2;
+  }
+
+  .instagram:hover, 
+  .instagram:focus-visible {
+    color: #E4405F;
+  }
+
+  .linkedin:hover, 
+  .linkedin:focus-visible {
+    color: #0077B5;
+  }
+
+  .qr-icon:hover, 
+  .qr-icon:focus-visible {
+    color: var(--gray);
+  }
+}
+
+/* ========================================
+   QR CODE MODAL COMPONENT
+   ======================================== */
+.qr-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.qr-modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.qr-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.qr-modal-content {
+  position: relative;
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.qr-modal.active .qr-modal-content {
+  transform: scale(1);
+}
+
+.qr-modal-header {
+  background-color: var(--yellow);
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.qr-modal-title {
+  margin: 0;
+  color: var(--black);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.qr-modal-close {
+  background: none;
+  border: none;
+  color: var(--black);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: var(--transition);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+.qr-modal-body {
+  padding: 30px;
+  text-align: center;
+}
+
+.qr-code-container {
+  margin-bottom: 25px;
+  display: flex;
+  justify-content: center;
+}
+
+.qr-code-image {
+  max-width: 200px;
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.qr-modal-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.qr-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--black);
+  color: var(--white);
+  padding: 12px 24px;
+  border-radius: var(--btn-radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--transition);
+  border: 2px solid var(--black);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.qr-download-btn:hover {
+  background-color: var(--white);
+  color: var(--black);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.qr-download-btn:disabled {
+  /* Ensure disabled state maintains default black background */
+  background-color: var(--black);
+  color: var(--white);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.qr-download-btn:disabled:hover {
+  /* Prevent hover effects when button is disabled */
+  background-color: var(--black);
+  color: var(--white);
+  transform: none;
+  box-shadow: none;
+}
+
+.qr-download-btn i {
+  font-size: 16px;
+}
+
+/* ========================================
+   RESPONSIVE DESIGN BREAKPOINTS
+   
+   Comprehensive responsive design covering all screen sizes:
+   - 4K Displays (2560px+): Enhanced spacing for large screens
+   - Large Desktop (1920px-2559px): Optimized for Full HD displays
+   - Desktop (1440px-1919px): Standard desktop experience
+   - Standard Desktop (1280px-1439px): Common desktop resolution
+   - Small Desktop / Large Tablet (1024px-1279px): Tablet landscape
+   - Tablet (768px-1023px): Tablet portrait
+   - Small Tablet / Large Mobile (480px-767px): Large mobile devices
+   - Mobile (375px-479px): Standard mobile devices (iPhone SE, iPhone 8)
+   - Small Mobile (320px-374px): Smallest mobile devices (critical breakpoint)
+   
+   All spacing, typography, and component sizes are adjusted via CSS custom properties
+   to ensure optimal viewing experience across all breakpoints.
+   ======================================== */
+
+/* 4K Displays (2560px and above) */
+@media (min-width: 2560px) {
+  :root {
+    --body-padding: 40px;
+    --card-max-width: 480px;
+  }
+}
+
+/* Large Desktop (1920px - 2559px) */
+@media (min-width: 1920px) and (max-width: 2559px) {
+  :root {
+    --body-padding: 30px;
+    --card-max-width: 450px;
+  }
+}
+
+/* Desktop (1440px - 1919px) */
+@media (min-width: 1440px) and (max-width: 1919px) {
+  :root {
+    --body-padding: 25px;
+    --card-max-width: 440px;
+  }
+}
+
+/* Standard Desktop (1280px - 1439px) */
+@media (min-width: 1280px) and (max-width: 1439px) {
+  :root {
+    --body-padding: 20px;
+    --card-max-width: 420px;
+  }
+}
+
+/* Small Desktop / Large Tablet (1024px - 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --body-padding: 20px;
+    --card-max-width: 420px;
+  }
+}
+
+/* Tablet (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --body-padding: 20px;
+    --card-max-width: 420px;
+  }
+  
+  /* Ensure QR download button maintains default state on touch devices (768px) */
+  .qr-download-btn {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+  }
+  
+  .qr-download-btn:hover,
+  .qr-download-btn:focus,
+  .qr-download-btn:active {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Small Tablet / Large Mobile (480px - 767px) */
+@media (min-width: 480px) and (max-width: 767px) {
+  :root {
+    --body-padding: 15px;
+    --card-max-width: 420px;
+    --header-padding-x: 20px;
+    --header-padding-y: 18px;
+    --header-padding-bottom: 38px;
+    --header-min-height: 115px;
+    --profile-image-size: 125px;
+    --profile-image-bottom: -62.5px;
+    --body-padding-top: 80px;
+    --body-padding-x: 25px;
+    --name-font-size: 22px;
+    --title-font-size: 15px;
+    --bio-font-size: 13px;
+    --contact-padding-x: 25px;
+    --contact-button-padding-x: 18px;
+    --contact-button-gap: 10px;
+    --copy-icon-right: 18px;
+    --footer-padding: 18px;
+    --footer-gap: 25px;
+  }
+  
+  /* Ensure QR download button maintains default state on touch devices (768px and below) */
+  .qr-download-btn {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+  }
+  
+  .qr-download-btn:hover,
+  .qr-download-btn:focus,
+  .qr-download-btn:active {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Mobile (375px - 479px) */
+@media (min-width: 375px) and (max-width: 479px) {
+  :root {
+    --body-padding: 12px;
+    --card-max-width: 100%;
+    --header-padding-x: 16px;
+    --header-padding-y: 16px;
+    --header-padding-bottom: 35px;
+    --header-min-height: 110px;
+    --profile-image-size: 120px;
+    --profile-image-bottom: -60px;
+    --profile-image-scale: 0.82;
+    --profile-image-border: 3px;
+    --body-padding-top: 75px;
+    --body-padding-x: 20px;
+    --body-padding-bottom: 18px;
+    --name-font-size: 21px;
+    --title-font-size: 14px;
+    --bio-font-size: 13px;
+    --contact-padding-x: 20px;
+    --contact-padding-bottom: 18px;
+    --contact-button-height: 48px;
+    --contact-button-padding-x: 16px;
+    --contact-button-gap: 10px;
+    --contact-icon-size: 16px;
+    --contact-icon-width: 18px;
+    --copy-icon-right: 16px;
+    --footer-padding: 16px;
+    --footer-gap: 20px;
+    --social-icon-size: 36px;
+    --social-icon-font-size: 18px;
+    --camera-icon-size: 1.4rem;
+  }
+  
+  /* Ensure QR download button maintains default state on touch devices */
+  .qr-download-btn {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+  }
+  
+  .qr-download-btn:hover,
+  .qr-download-btn:focus,
+  .qr-download-btn:active {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Small Mobile (320px - 374px) - Critical breakpoint */
+@media (max-width: 374px) {
+  :root {
+    --body-padding: 10px;
+    --card-max-width: 100%;
+    --header-padding-x: 12px;
+    --header-padding-y: 14px;
+    --header-padding-bottom: 32px;
+    --header-min-height: 105px;
+    --profile-image-size: 110px;
+    --profile-image-bottom: -55px;
+    --profile-image-scale: 0.8;
+    --profile-image-border: 3px;
+    --body-padding-top: 70px;
+    --body-padding-x: 16px;
+    --body-padding-bottom: 16px;
+    --name-font-size: 20px;
+    --title-font-size: 13px;
+    --bio-font-size: 12px;
+    --contact-padding-x: 16px;
+    --contact-padding-bottom: 16px;
+    --contact-button-height: 46px;
+    --contact-button-padding-x: 12px;
+    --contact-button-gap: 8px;
+    --contact-icon-size: 15px;
+    --contact-icon-width: 16px;
+    --copy-icon-right: 12px;
+    --footer-padding: 14px;
+    --footer-gap: 16px;
+    --social-icon-size: 32px;
+    --social-icon-font-size: 16px;
+    --camera-icon-size: 1.3rem;
+  }
+  
+  /* Ensure contact text doesn't overflow on very small screens */
+  .contact-text {
+    font-size: 13px;
+  }
+  
+  /* Adjust copy icon size for better touch targets */
+  .copy-icon {
+    width: 18px;
+    height: 18px;
+    font-size: 14px;
+  }
+  
+  /* Ensure QR download button maintains default state on touch devices */
+  .qr-download-btn {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+  }
+  
+  .qr-download-btn:hover,
+  .qr-download-btn:focus,
+  .qr-download-btn:active {
+    background-color: var(--black) !important;
+    color: var(--white) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Ultra-common mobile width (425px and below): prevent awkward vertical centering on short heights */
+@media (max-width: 425px) and (max-height: 700px) {
+  body {
+    align-items: flex-start;
+  }
+}
+
+/* QR Modal Responsive Adjustments */
+@media (max-width: 480px) {
+  .qr-modal-content {
+    width: 95%;
+    margin: 20px;
+  }
+  
+  .qr-modal-body {
+    padding: 20px;
+  }
+  
+  .qr-code-image {
+    max-width: 150px;
+  }
+  
+  .qr-download-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+}
+
+/* QR Modal - Small Mobile (320px) */
+@media (max-width: 374px) {
+  .qr-modal-content {
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .qr-modal-header {
+    padding: 16px;
+  }
+  
+  .qr-modal-title {
+    font-size: 16px;
+  }
+  
+  .qr-modal-close {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+  
+  .qr-modal-body {
+    padding: 16px;
+  }
+  
+  .qr-code-image {
+    max-width: 130px;
+  }
+  
+  .qr-download-btn {
+    padding: 10px 18px;
+    font-size: 12px;
+  }
+  
+  .qr-download-btn i {
+    font-size: 14px;
+  }
+}
+

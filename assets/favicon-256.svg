@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Background circle with pink color -->
+  <circle cx="128" cy="128" r="128" fill="#f7a9b8"/>
+  
+  <!-- Yellow accent circle -->
+  <circle cx="128" cy="128" r="96" fill="#F4C542"/>
+  
+  <!-- Inner circle for text background -->
+  <circle cx="128" cy="128" r="80" fill="#f7a9b8"/>
+  
+  <!-- Text "EW" - scaled proportionally for QR code use -->
+  <text x="128" y="160" font-family="Montserrat, sans-serif" font-size="96" font-weight="700" text-anchor="middle" fill="#000000">EW</text>
+</svg>
+
