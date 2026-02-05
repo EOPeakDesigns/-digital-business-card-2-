@@ -134,7 +134,18 @@
     const storeTextEl = document.getElementById('app-download-store-text');
     const iconEl = document.getElementById('app-download-icon');
     
-    if (!modal) return;
+    if (!modal) {
+      console.warn('App download modal not found in DOM');
+      // Fallback: navigate directly to web if modal doesn't exist
+      window.location.href = webUrl;
+      return;
+    }
+    
+    // Ensure webUrl is valid
+    if (!webUrl || webUrl === '#') {
+      console.warn('Invalid webUrl provided to modal:', webUrl);
+      return;
+    }
 
     const appName = getAppName(platform);
     const storeUrl = getAppStoreUrl(platform);
@@ -160,8 +171,20 @@
       storeBtn.style.display = 'none';
     }
     
-    // Set web button
-    webBtn.href = webUrl;
+    // Set web button - ensure it's a valid absolute URL
+    if (webBtn) {
+      // Ensure webUrl is absolute (starts with http:// or https://)
+      let absoluteWebUrl = webUrl;
+      if (!webUrl.startsWith('http://') && !webUrl.startsWith('https://')) {
+        // If relative URL, make it absolute
+        absoluteWebUrl = `https://${webUrl}`;
+      }
+      webBtn.href = absoluteWebUrl;
+      webBtn.target = '_blank';
+      webBtn.rel = 'noopener noreferrer';
+      // Ensure button is visible
+      webBtn.style.display = 'inline-flex';
+    }
     
     // Show modal
     modal.classList.add('active');
@@ -201,11 +224,14 @@
     };
     document.addEventListener('keydown', handleEscape);
     
-    // Clean up on button click
-    storeBtn.onclick = () => {
+    // Clean up on button click - don't prevent default navigation
+    // Let the links work naturally (they have target="_blank" in HTML)
+    storeBtn.onclick = (e) => {
+      // Don't prevent default - let the link navigate
       setTimeout(closeModal, 100);
     };
-    webBtn.onclick = () => {
+    webBtn.onclick = (e) => {
+      // Don't prevent default - let the link navigate
       setTimeout(closeModal, 100);
     };
   };
@@ -481,9 +507,14 @@
           // For social media or if mailto failed: show download modal
           // Use passed platform parameter or extract from context
           const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
+          
+          // CRITICAL FIX: Use original webUrl (not finalWebUrl) to ensure correct URL
+          // finalWebUrl might be modified for email, but for social media we want the original
+          const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
+          
           if (detectedPlatform && isMobile()) {
             // On mobile: show download modal with app store options
-            showAppDownloadModal(detectedPlatform, finalWebUrl);
+            showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
           } else {
             // On desktop or no platform detected: go directly to web
             window.location.href = finalWebUrl;
