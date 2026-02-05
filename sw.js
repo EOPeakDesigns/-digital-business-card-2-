@@ -28,8 +28,7 @@ const CORE_ASSETS = [
   '/assets/favicon-256.svg',
   '/assets/favicon-qr.svg',
   '/assets/pwa-192.svg',
-  '/assets/pwa-512.svg',
-  '/assets/emma-wilson.vcf'
+  '/assets/pwa-512.svg'
 ];
 
 self.addEventListener('install', (event) => {
@@ -58,6 +57,12 @@ self.addEventListener('fetch', (event) => {
 
   // Only handle same-origin GET requests
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+
+  // vCard should always be fresh and never served from cache to avoid empty/bad downloads.
+  if (url.pathname.endsWith('.vcf')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
 
   // Cache-first
   event.respondWith(

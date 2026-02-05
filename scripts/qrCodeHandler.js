@@ -126,6 +126,13 @@ class QRCodeHandler {
       if (restoreTarget && typeof restoreTarget.focus === 'function') {
         window.setTimeout(() => restoreTarget.focus(), 0);
       }
+
+      // UX polish: if the pointer is still over the QR button (common when user clicks
+      // QR then presses Escape), the button can appear "hovered" immediately after close.
+      // We suppress hover effects until the pointer actually leaves the button.
+      if (restoreTarget === this.qrCodeButton && this.qrCodeButton) {
+        this.suppressHoverUntilPointerLeaves(this.qrCodeButton);
+      }
     }
   }
 
@@ -176,6 +183,25 @@ class QRCodeHandler {
       e.preventDefault();
       first.focus();
     }
+  }
+
+  /**
+   * Temporarily disable hover styling on an element until the next mouse move.
+   * Prevents "hover flash" after closing overlays/modals with the pointer resting
+   * on the trigger element.
+   * @param {HTMLElement} el
+   */
+  suppressHoverUntilPointerLeaves(el) {
+    if (!el || !el.classList) return;
+    el.classList.add('suppress-hover');
+
+    const clear = () => el.classList.remove('suppress-hover');
+
+    // Clear only once the pointer leaves the trigger. This guarantees the
+    // element won't look hovered while the cursor is resting on it.
+    el.addEventListener('pointerleave', clear, { once: true });
+    // Fallback for older browsers/environments
+    el.addEventListener('mouseleave', clear, { once: true });
   }
 
   /**

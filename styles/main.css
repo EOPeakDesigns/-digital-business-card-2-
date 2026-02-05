@@ -388,6 +388,11 @@ button.social-icon {
   transform: scale(1.1);
 }
 
+/* Suppress hover flash when a modal closes and the pointer rests on the trigger */
+.social-icon.suppress-hover:hover {
+  transform: none;
+}
+
 /* Accessible focus ring (keyboard only) - replaces the default black outline */
 .social-icon:focus-visible {
   box-shadow: 0 0 0 3px rgba(244, 197, 66, 0.75);
@@ -506,6 +511,11 @@ button.social-icon {
   .qr-icon:focus-visible {
     color: var(--gray);
   }
+}
+
+/* Ensure QR hover color doesn't apply while hover is being suppressed */
+.qr-icon.suppress-hover:hover {
+  color: var(--black);
 }
 
 /* ========================================

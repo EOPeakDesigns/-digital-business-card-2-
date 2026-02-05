@@ -16,6 +16,8 @@
       "source": "/assets/(.*)\\.vcf",
       "headers": [
         { "key": "Content-Type", "value": "text/vcard; charset=utf-8" },
+        { "key": "Content-Disposition", "value": "inline; filename=\"Emma-Wilson.vcf\"" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Cache-Control", "value": "public, max-age=86400" }
       ]
     }
