@@ -18,18 +18,54 @@
   /**
    * Detect if device is mobile/tablet (touch device)
    * Includes tablets as they should use mobile app behavior
+   * More accurate detection that doesn't false-positive on desktop with DevTools
    */
   const isMobile = () => {
-    // Prefer pointer/hover heuristics over UA sniffing
+    // First check: User Agent (most reliable for actual device type)
+    const ua = navigator.userAgent || '';
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    
+    // Second check: Media queries (more reliable than touch detection)
     const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
     const noHover = window.matchMedia?.('(hover: none)')?.matches;
-    // Also check for touch capability
-    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    return Boolean(hasCoarsePointer || noHover || hasTouch);
+    
+    // Third check: Screen size (mobile devices typically have smaller screens)
+    // Only consider touch if screen is mobile-sized (prevents false positives from DevTools)
+    const isSmallScreen = window.innerWidth <= 768;
+    const hasTouch = isSmallScreen && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    
+    // Return true only if multiple indicators suggest mobile
+    // This prevents false positives when DevTools emulation is active
+    return Boolean(
+      (isMobileUA && (hasCoarsePointer || noHover)) || 
+      (hasCoarsePointer && noHover && hasTouch)
+    );
+  };
+
+  /**
+   * Detect if running on desktop browser (Windows, Mac, Linux)
+   * Explicitly excludes mobile devices and tablets
+   */
+  const isDesktop = () => {
+    const ua = navigator.userAgent || '';
+    // Check for desktop OS indicators
+    const isDesktopOS = /Windows|Macintosh|Linux|X11/i.test(ua);
+    // Exclude mobile devices even if they have desktop-like UA
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    // Check if it's actually a desktop browser (not mobile browser in desktop mode)
+    const isDesktopBrowser = isDesktopOS && !isMobileDevice && window.innerWidth > 768;
+    return isDesktopBrowser;
   };
 
   const isIOS = () => /iPad|iPhone|iPod/i.test(navigator.userAgent) && !window.MSStream;
-  const isAndroid = () => /Android/i.test(navigator.userAgent);
+  const isAndroid = () => {
+    // Only return true if actually on Android device, not desktop browser
+    const ua = navigator.userAgent || '';
+    const androidUA = /Android/i.test(ua);
+    // Additional check: ensure it's not a desktop browser with Android in UA
+    const isDesktopBrowser = /Windows|Macintosh|Linux|X11/i.test(ua) && !/Mobile/i.test(ua);
+    return androidUA && !isDesktopBrowser;
+  };
 
   const getUsernameFromUrl = (url) => {
     try {
@@ -46,34 +82,26 @@
 
     switch (platform) {
       case 'instagram':
-        // instagram://user?username=<username> (most reliable on iOS)
+        // Works on both iOS and desktop (will fail gracefully on desktop)
         if (username) {
           return `instagram://user?username=${encodeURIComponent(username)}`;
         }
-        // Fallback: try to open profile page
-        return `instagram://www.instagram.com/${encodeURIComponent(webUrl)}`;
+        return null;
       case 'twitter':
-        // twitter://user?screen_name=<username> (most reliable on iOS)
         if (username) {
           return `twitter://user?screen_name=${encodeURIComponent(username)}`;
         }
-        // Fallback: open tweet/user page
-        return `twitter://status?id=${encodeURIComponent(webUrl)}`;
+        return null;
       case 'linkedin':
-        // linkedin://in/<username> (most reliable on iOS)
         if (username) {
           return `linkedin://in/${encodeURIComponent(username)}`;
         }
-        // Fallback: try profile URL
-        return `linkedin://profile/view?id=${encodeURIComponent(webUrl)}`;
+        return null;
       case 'facebook':
-        // fb://profile/<username> or fb://page/<pageid> - try profile first
         if (username) {
-          // Try profile scheme first (most reliable)
           return `fb://profile/${encodeURIComponent(username)}`;
         }
-        // Fallback to facewebmodal with full URL
-        return `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`;
+        return null;
       case 'email':
         // Gmail app on iOS: googlegmail://co?to=<email>&subject=<subject>&body=<body>
         const emailIOS = link?.getAttribute?.('data-email') || '';
@@ -103,34 +131,48 @@
     const username = getUsernameFromUrl(webUrl);
     const fallback = encodeURIComponent(webUrl);
     
+    // On desktop: Use direct app schemes (will fail gracefully and fallback to web)
+    // On Android: Use Intent URLs (most reliable)
+    const useIntentURL = isAndroid() && !isDesktop();
+    
     switch (platform) {
       case 'instagram':
-        // Use Android Intent URL with proper path format
         if (username) {
-          // Correct Intent URL format: intent://instagram.com/username#Intent;package=...;S.browser_fallback_url=...;end
-          // The browser_fallback_url will automatically open web if app not installed
-          return `intent://instagram.com/${encodeURIComponent(username)}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          if (useIntentURL) {
+            // Android: Use Intent URL (most reliable with automatic fallback)
+            return `intent://instagram.com/${encodeURIComponent(username)}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          } else {
+            // Desktop/Other: Try direct scheme (will fail quickly, then fallback to web)
+            return `instagram://user?username=${encodeURIComponent(username)}`;
+          }
         }
-        // If no username, return web URL directly (will be handled as fallback)
         return null;
       case 'twitter':
-        // Use Android Intent URL for Twitter/X
         if (username) {
-          return `intent://twitter.com/${encodeURIComponent(username)}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          if (useIntentURL) {
+            return `intent://twitter.com/${encodeURIComponent(username)}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          } else {
+            return `twitter://user?screen_name=${encodeURIComponent(username)}`;
+          }
         }
         return null;
       case 'linkedin':
-        // Use Android Intent URL for LinkedIn
         if (username) {
-          return `intent://linkedin.com/in/${encodeURIComponent(username)}#Intent;package=com.linkedin.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          if (useIntentURL) {
+            return `intent://linkedin.com/in/${encodeURIComponent(username)}#Intent;package=com.linkedin.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          } else {
+            return `linkedin://in/${encodeURIComponent(username)}`;
+          }
         }
         return null;
       case 'facebook':
-        // Use Android Intent URL for Facebook (most reliable)
         if (username) {
-          return `intent://facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
+          if (useIntentURL) {
+            return `intent://facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
+          } else {
+            return `fb://profile/${encodeURIComponent(username)}`;
+          }
         }
-        // Fallback to web URL if no username
         return null;
       case 'email':
         // Gmail app on Android: try multiple methods for maximum reliability
@@ -177,6 +219,18 @@
       primaryUrl = appUrl.primary;
       fallbackUrl = appUrl.fallback;
       finalWebUrl = appUrl.web || webUrl;
+    }
+    
+    // Smart handling: On desktop, Intent URLs won't work, so skip them immediately
+    // On mobile Android, Intent URLs work great. On desktop, use direct schemes.
+    if (typeof primaryUrl === 'string' && primaryUrl.startsWith('intent://') && isDesktop()) {
+      // Desktop: Intent URLs don't work, go directly to web (fast fallback)
+      if (fallbackUrl) {
+        window.location.href = fallbackUrl;
+      } else {
+        window.location.href = finalWebUrl;
+      }
+      return;
     }
     
     let didHide = false;
@@ -278,9 +332,10 @@
     // Attempt to open primary URL (app)
     attemptOpen(primaryUrl);
 
-    // Smart fallback timing: wait longer for Android (Intent URLs can be slower)
-    // iOS apps typically open faster
-    const fallbackDelay = isIOS() ? 2000 : 3000; // 2s iOS, 3s Android (increased for better detection)
+    // Smart fallback timing: 
+    // - Desktop: Very short timeout (apps won't open, fail fast)
+    // - Mobile: Longer timeout to give apps time to open
+    const fallbackDelay = isDesktop() ? 500 : (isIOS() ? 2000 : 3000);
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
@@ -310,7 +365,8 @@
 
   /**
    * Handle click events on social links and email links
-   * Priority: Native app > Web browser
+   * Smart Priority: Try native app first (on all platforms) > Fallback to web browser
+   * Works on both desktop and mobile with intelligent fallback
    */
   const onClick = (e) => {
     // Support both social links and email links
@@ -321,42 +377,69 @@
     const platform = link.getAttribute('data-platform');
     if (!webUrl || !platform) return;
 
-    // For email: handle on mobile/tablet (try app first) and desktop (use web)
+    // SMART APPROACH: Try app first on ALL platforms, then fallback to web
+    // This gives the best user experience - app if available, web if not
+    
+    // For email: try app first, fallback to web (works on all platforms)
     if (platform === 'email') {
-      if (isMobile()) {
-        // On mobile/tablet: try Gmail app first, fallback to web
-        let appUrl = null;
-        if (isAndroid()) {
-          appUrl = buildAndroidDeepLink(platform, webUrl, link);
-        } else if (isIOS()) {
-          appUrl = buildIOSDeepLink(platform, webUrl, link);
+      let appUrl = null;
+      if (isAndroid()) {
+        appUrl = buildAndroidDeepLink(platform, webUrl, link);
+      } else if (isIOS()) {
+        appUrl = buildIOSDeepLink(platform, webUrl, link);
+      } else {
+        // Desktop/Other: Try Gmail app scheme (will fail gracefully and fallback to web)
+        const emailDesktop = link?.getAttribute?.('data-email') || '';
+        const nameDesktop = link?.getAttribute?.('data-name') || '';
+        if (emailDesktop) {
+          const subjectDesktop = 'Contact from Digital Business Card';
+          const bodyDesktop = `Hello ${nameDesktop || 'there'},\n\n`;
+          const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailDesktop)}&su=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`;
+          const mailtoUrl = `mailto:${encodeURIComponent(emailDesktop)}?subject=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`;
+          
+          appUrl = {
+            primary: `googlegmail://co?to=${encodeURIComponent(emailDesktop)}&subject=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`,
+            fallback: mailtoUrl,
+            web: gmailWebUrl
+          };
         }
-        
-        if (appUrl) {
-          e.preventDefault();
-          e.stopPropagation();
-          openWithFallback(appUrl, webUrl);
-          return;
-        }
-        // If no app URL could be built, let normal navigation happen (web URL with pre-filled fields)
       }
-      // On desktop or if app URL couldn't be built: let normal navigation happen
-      // The href already has pre-filled Gmail compose URL, so it will work correctly
+      
+      if (appUrl) {
+        e.preventDefault();
+        e.stopPropagation();
+        openWithFallback(appUrl, webUrl);
+        return;
+      }
+      // If no app URL could be built, let normal navigation happen
       return;
     }
 
-    // For social media: intercept on mobile/tablet (try app first), desktop uses web
-    if (!isMobile()) {
-      // On desktop, keep default behavior (web in browser)
-      return;
-    }
-
-    // Build platform-specific deep link
+    // For social media: try app first on all platforms, fallback to web
     let appUrl = null;
     if (isAndroid()) {
       appUrl = buildAndroidDeepLink(platform, webUrl, link);
     } else if (isIOS()) {
       appUrl = buildIOSDeepLink(platform, webUrl, link);
+    } else {
+      // Desktop/Other: Try direct app schemes (will fail gracefully and fallback to web)
+      const username = getUsernameFromUrl(webUrl);
+      if (username) {
+        switch (platform) {
+          case 'instagram':
+            appUrl = `instagram://user?username=${encodeURIComponent(username)}`;
+            break;
+          case 'twitter':
+            appUrl = `twitter://user?screen_name=${encodeURIComponent(username)}`;
+            break;
+          case 'linkedin':
+            appUrl = `linkedin://in/${encodeURIComponent(username)}`;
+            break;
+          case 'facebook':
+            appUrl = `fb://profile/${encodeURIComponent(username)}`;
+            break;
+        }
+      }
     }
     
     if (!appUrl) {
@@ -364,7 +447,8 @@
       return;
     }
 
-    // Prevent default navigation and try app first
+    // Prevent default navigation and try app first (works on all platforms)
+    // If app doesn't open, fallback mechanism will redirect to web
     e.preventDefault();
     e.stopPropagation();
     openWithFallback(appUrl, webUrl);
