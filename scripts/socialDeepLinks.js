@@ -184,14 +184,39 @@
     // Support both social links and email links
     const link = e.target?.closest?.('.social-link, .email-link');
     if (!link) return;
-    if (!isMobile()) return; // On desktop, keep default behavior (web in browser).
-
+    
     const webUrl = link.getAttribute('href');
     const platform = link.getAttribute('data-platform');
     if (!webUrl || !platform) return;
 
+    // For email specifically: handle on all devices (mobile tries app first, desktop uses web)
+    if (platform === 'email') {
+      if (isMobile()) {
+        // On mobile: try app first, fallback to web
+        let appUrl = null;
+        if (isAndroid()) {
+          appUrl = buildAndroidDeepLink(platform, webUrl, link);
+        } else if (isIOS()) {
+          appUrl = buildIOSDeepLink(platform, webUrl, link);
+        }
+        
+        if (appUrl) {
+          e.preventDefault();
+          openWithFallback(appUrl, webUrl);
+          return;
+        }
+        // If no app URL could be built, let normal navigation happen (web URL with pre-filled fields)
+      }
+      // On desktop/tablet or if app URL couldn't be built: let normal navigation happen
+      // The href already has pre-filled Gmail compose URL, so it will work correctly
+      return;
+    }
+
+    // For social media: only intercept on mobile
+    if (!isMobile()) return; // On desktop, keep default behavior (web in browser).
+
     // Platform-targeted deep links for best success rate:
-    // - Android: direct schemes (googlegmail://, instagram://, etc.) work reliably
+    // - Android: direct schemes (instagram://, etc.) work reliably
     // - iOS Safari: custom schemes work well
     // - Both: fallback to web URL if app not installed
     let appUrl = null;
