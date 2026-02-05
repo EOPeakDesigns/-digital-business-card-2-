@@ -1,27 +1,31 @@
 /**
  * Social Deep Links & Email App Links
- * Attempts to open social profiles and email in native apps on mobile, with safe web fallback.
- *
- * Why:
- * - Universal links (https) often open apps, but not always—especially with new tabs.
- * - Custom schemes can open apps directly when installed.
+ * Attempts to open social profiles and email in native apps on mobile/tablet, with smart web fallback.
  *
  * Strategy:
- * - On mobile, intercept clicks on `.social-link` and `.email-link`
- * - Attempt app deep link first (user gesture)
- * - Fallback to the normal https URL if the app isn't installed / blocked
+ * - Priority 1: Open native app (iOS/Android)
+ * - Priority 2: Fallback to web browser if app not installed
+ * - Works on smartphones, tablets, and desktop (with appropriate behavior)
  *
  * Notes:
- * - Some platforms behave differently across iOS/Android.
- * - We keep web URLs as the source of truth, and only enhance on mobile.
+ * - Uses Android Intent URLs for maximum reliability on Android
+ * - Uses custom schemes for iOS (most reliable)
+ * - Smart fallback detection with improved timing
+ * - Supports tablets (detected as mobile devices)
  */
 
 (() => {
+  /**
+   * Detect if device is mobile/tablet (touch device)
+   * Includes tablets as they should use mobile app behavior
+   */
   const isMobile = () => {
-    // Prefer pointer/hover heuristics over UA sniffing.
+    // Prefer pointer/hover heuristics over UA sniffing
     const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
     const noHover = window.matchMedia?.('(hover: none)')?.matches;
-    return Boolean(hasCoarsePointer || noHover);
+    // Also check for touch capability
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    return Boolean(hasCoarsePointer || noHover || hasTouch);
   };
 
   const isIOS = () => /iPad|iPhone|iPod/i.test(navigator.userAgent) && !window.MSStream;
@@ -43,20 +47,32 @@
     switch (platform) {
       case 'instagram':
         // instagram://user?username=<username> (most reliable on iOS)
-        return username ? `instagram://user?username=${encodeURIComponent(username)}` : null;
+        if (username) {
+          return `instagram://user?username=${encodeURIComponent(username)}`;
+        }
+        // Fallback: try to open profile page
+        return `instagram://www.instagram.com/${encodeURIComponent(webUrl)}`;
       case 'twitter':
         // twitter://user?screen_name=<username> (most reliable on iOS)
-        return username ? `twitter://user?screen_name=${encodeURIComponent(username)}` : null;
+        if (username) {
+          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
+        }
+        // Fallback: open tweet/user page
+        return `twitter://status?id=${encodeURIComponent(webUrl)}`;
       case 'linkedin':
         // linkedin://in/<username> (most reliable on iOS)
-        return username ? `linkedin://in/${encodeURIComponent(username)}` : null;
+        if (username) {
+          return `linkedin://in/${encodeURIComponent(username)}`;
+        }
+        // Fallback: try profile URL
+        return `linkedin://profile/view?id=${encodeURIComponent(webUrl)}`;
       case 'facebook':
         // fb://profile/<username> or fb://page/<pageid> - try profile first
         if (username) {
-          // Try profile scheme first (more reliable than facewebmodal)
+          // Try profile scheme first (most reliable)
           return `fb://profile/${encodeURIComponent(username)}`;
         }
-        // Fallback to facewebmodal if no username extracted
+        // Fallback to facewebmodal with full URL
         return `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`;
       case 'email':
         // Gmail app on iOS: googlegmail://co?to=<email>&subject=<subject>&body=<body>
@@ -68,6 +84,7 @@
         const subjectIOS = 'Contact from Digital Business Card';
         const bodyIOS = `Hello ${nameIOS || 'there'},\n\n`;
         
+        // Gmail app scheme for iOS
         return `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
       default:
         return null;
@@ -80,33 +97,34 @@
     
     switch (platform) {
       case 'instagram':
-        // Try direct scheme first (more reliable), then intent:// as fallback
+        // Use Android Intent URL for maximum reliability
         if (username) {
-          // Direct scheme: instagram://user?username=<username>
-          return `instagram://user?username=${encodeURIComponent(username)}`;
+          // Intent URL with direct scheme fallback
+          return `intent://instagram.com/user/${encodeURIComponent(username)}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
         }
+        // Fallback to web URL if no username
         return null;
       case 'twitter':
-        // Try direct scheme first
+        // Use Android Intent URL for Twitter/X
         if (username) {
-          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
+          return `intent://twitter.com/${encodeURIComponent(username)}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=${fallback};end`;
         }
         return null;
       case 'linkedin':
-        // Try direct scheme first
+        // Use Android Intent URL for LinkedIn
         if (username) {
-          return `linkedin://in/${encodeURIComponent(username)}`;
+          return `intent://linkedin.com/in/${encodeURIComponent(username)}#Intent;package=com.linkedin.android;scheme=https;S.browser_fallback_url=${fallback};end`;
         }
         return null;
       case 'facebook':
-        // Try direct scheme first
+        // Use Android Intent URL for Facebook (most reliable)
         if (username) {
-          return `fb://profile/${encodeURIComponent(username)}`;
+          return `intent://facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
         }
-        // Fallback to intent:// if no username
-        return `intent://www.facebook.com/${encodeURIComponent(username || '')}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
+        // Fallback to web URL if no username
+        return null;
       case 'email':
-        // Gmail app on Android: use direct googlegmail:// scheme with pre-filled compose
+        // Gmail app on Android: use googlegmail:// scheme with pre-filled compose
         const emailAndroid = link?.getAttribute?.('data-email') || '';
         const nameAndroid = link?.getAttribute?.('data-name') || '';
         if (!emailAndroid) return null;
@@ -115,19 +133,34 @@
         const subjectAndroid = 'Contact from Digital Business Card';
         const bodyAndroid = `Hello ${nameAndroid || 'there'},\n\n`;
         
+        // Gmail app scheme for Android (googlegmail:// works better than intent:// for Gmail)
         return `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
       default:
         return null;
     }
   };
 
+  /**
+   * Open app with smart fallback to web
+   * Uses multiple detection methods to determine if app opened successfully
+   */
   const openWithFallback = (appUrl, webUrl) => {
     let didHide = false;
+    let didBlur = false;
     let fallbackTimer = null;
+    let visibilityTimer = null;
     
     const onHide = () => {
       didHide = true;
       cleanup();
+    };
+    
+    const onBlur = () => {
+      didBlur = true;
+      // If page blurred, app likely opened - wait a bit then cleanup
+      visibilityTimer = setTimeout(() => {
+        cleanup();
+      }, 500);
     };
     
     const cleanup = () => {
@@ -135,51 +168,88 @@
         clearTimeout(fallbackTimer);
         fallbackTimer = null;
       }
+      if (visibilityTimer) {
+        clearTimeout(visibilityTimer);
+        visibilityTimer = null;
+      }
       document.removeEventListener('visibilitychange', onVisibility, true);
       window.removeEventListener('pagehide', onHide, true);
-      window.removeEventListener('blur', onHide, true);
+      window.removeEventListener('blur', onBlur, true);
     };
     
     const onVisibility = () => {
       if (document.hidden) {
-        onHide();
+        didHide = true;
+        cleanup();
       }
     };
 
-    // If the app opens, the page will typically be backgrounded/hidden.
+    // Multiple detection methods for app opening
     document.addEventListener('visibilitychange', onVisibility, true);
     window.addEventListener('pagehide', onHide, true);
-    window.addEventListener('blur', onHide, true);
+    window.addEventListener('blur', onBlur, true);
 
     // Attempt app deep link (must be within user gesture in many browsers)
-    // Use iframe trick for Android to avoid navigation issues
-    if (isAndroid() && appUrl.startsWith('googlegmail://')) {
-      // For Gmail on Android, use iframe method for better reliability
+    // Use iframe trick for Android Gmail and Intent URLs to avoid navigation issues
+    if (isAndroid() && (appUrl.startsWith('googlegmail://') || appUrl.startsWith('intent://'))) {
+      // For Android, use iframe method for better reliability (avoids page navigation)
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
       iframe.src = appUrl;
       document.body.appendChild(iframe);
       
-      // Remove iframe after a short delay
+      // Remove iframe after a delay
       setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
+        try {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }, 1500);
     } else {
-      // For other apps/platforms, use direct navigation
-      window.location.href = appUrl;
+      // For iOS and other platforms, use direct navigation
+      try {
+        window.location.href = appUrl;
+      } catch (e) {
+        // If direct navigation fails, try creating a link and clicking it
+        const link = document.createElement('a');
+        link.href = appUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(link);
+          } catch (err) {
+            // Ignore cleanup errors
+          }
+        }, 100);
+      }
     }
 
-    // Fallback to web if we didn't leave the page - wait longer to give apps time to open
-    // iOS apps typically open faster, Android can take longer
+    // Smart fallback timing: wait longer for Android (Intent URLs can be slower)
+    // iOS apps typically open faster
+    const fallbackDelay = isIOS() ? 1800 : 2500; // 1.8s iOS, 2.5s Android
+    
     fallbackTimer = window.setTimeout(() => {
       cleanup();
-      if (!didHide) {
-        // Only fallback if page is still visible (app didn't open)
+      // Only fallback if page is still visible and didn't blur (app didn't open)
+      if (!didHide && !didBlur && !document.hidden) {
+        // App didn't open, fallback to web
         window.location.href = webUrl;
       }
-    }, isIOS() ? 1500 : 2000); // Increased wait time: 1.5s iOS, 2s Android
+    }, fallbackDelay);
   };
 
+  /**
+   * Handle click events on social links and email links
+   * Priority: Native app > Web browser
+   */
   const onClick = (e) => {
     // Support both social links and email links
     const link = e.target?.closest?.('.social-link, .email-link');
@@ -189,10 +259,10 @@
     const platform = link.getAttribute('data-platform');
     if (!webUrl || !platform) return;
 
-    // For email specifically: handle on all devices (mobile tries app first, desktop uses web)
+    // For email: handle on mobile/tablet (try app first) and desktop (use web)
     if (platform === 'email') {
       if (isMobile()) {
-        // On mobile: try app first, fallback to web
+        // On mobile/tablet: try Gmail app first, fallback to web
         let appUrl = null;
         if (isAndroid()) {
           appUrl = buildAndroidDeepLink(platform, webUrl, link);
@@ -202,32 +272,39 @@
         
         if (appUrl) {
           e.preventDefault();
+          e.stopPropagation();
           openWithFallback(appUrl, webUrl);
           return;
         }
         // If no app URL could be built, let normal navigation happen (web URL with pre-filled fields)
       }
-      // On desktop/tablet or if app URL couldn't be built: let normal navigation happen
+      // On desktop or if app URL couldn't be built: let normal navigation happen
       // The href already has pre-filled Gmail compose URL, so it will work correctly
       return;
     }
 
-    // For social media: only intercept on mobile
-    if (!isMobile()) return; // On desktop, keep default behavior (web in browser).
+    // For social media: intercept on mobile/tablet (try app first), desktop uses web
+    if (!isMobile()) {
+      // On desktop, keep default behavior (web in browser)
+      return;
+    }
 
-    // Platform-targeted deep links for best success rate:
-    // - Android: direct schemes (instagram://, etc.) work reliably
-    // - iOS Safari: custom schemes work well
-    // - Both: fallback to web URL if app not installed
+    // Build platform-specific deep link
     let appUrl = null;
     if (isAndroid()) {
       appUrl = buildAndroidDeepLink(platform, webUrl, link);
     } else if (isIOS()) {
       appUrl = buildIOSDeepLink(platform, webUrl, link);
     }
-    if (!appUrl) return; // If we can't build a reliable app URL, let normal navigation happen.
+    
+    if (!appUrl) {
+      // If we can't build a reliable app URL, let normal navigation happen
+      return;
+    }
 
+    // Prevent default navigation and try app first
     e.preventDefault();
+    e.stopPropagation();
     openWithFallback(appUrl, webUrl);
   };
 
