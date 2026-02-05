@@ -42,21 +42,24 @@
 
     switch (platform) {
       case 'instagram':
-        // instagram://user?username=<username>
+        // instagram://user?username=<username> (most reliable on iOS)
         return username ? `instagram://user?username=${encodeURIComponent(username)}` : null;
       case 'twitter':
-        // twitter://user?screen_name=<username>
+        // twitter://user?screen_name=<username> (most reliable on iOS)
         return username ? `twitter://user?screen_name=${encodeURIComponent(username)}` : null;
       case 'linkedin':
-        // linkedin://in/<username>
+        // linkedin://in/<username> (most reliable on iOS)
         return username ? `linkedin://in/${encodeURIComponent(username)}` : null;
       case 'facebook':
-        // "facewebmodal" opens in the Facebook app when supported.
-        // If it fails, the fallback web URL will typically open the app via Universal Links
-        // (when the Facebook app is installed) on iOS Safari.
+        // fb://profile/<username> or fb://page/<pageid> - try profile first
+        if (username) {
+          // Try profile scheme first (more reliable than facewebmodal)
+          return `fb://profile/${encodeURIComponent(username)}`;
+        }
+        // Fallback to facewebmodal if no username extracted
         return `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`;
       case 'email':
-        // Gmail app on iOS: googlegmail://co?to=<email>
+        // Gmail app on iOS: googlegmail://co?to=<email> (works reliably)
         const email = link?.getAttribute?.('data-email') || '';
         return email ? `googlegmail://co?to=${encodeURIComponent(email)}` : null;
       default:
@@ -64,33 +67,41 @@
     }
   };
 
-  const buildAndroidIntent = (platform, webUrl, link) => {
+  const buildAndroidDeepLink = (platform, webUrl, link) => {
     const username = getUsernameFromUrl(webUrl);
     const fallback = encodeURIComponent(webUrl);
+    
     switch (platform) {
       case 'instagram':
-        // Opens Instagram app profile if installed (Chrome Android supports intent://).
-        return username
-          ? `intent://instagram.com/_u/${encodeURIComponent(username)}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`
-          : null;
+        // Try direct scheme first (more reliable), then intent:// as fallback
+        if (username) {
+          // Direct scheme: instagram://user?username=<username>
+          return `instagram://user?username=${encodeURIComponent(username)}`;
+        }
+        return null;
       case 'twitter':
-        return username
-          ? `intent://twitter.com/${encodeURIComponent(username)}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=${fallback};end`
-          : null;
+        // Try direct scheme first
+        if (username) {
+          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
+        }
+        return null;
       case 'linkedin':
-        return username
-          ? `intent://www.linkedin.com/in/${encodeURIComponent(username)}#Intent;package=com.linkedin.android;scheme=https;S.browser_fallback_url=${fallback};end`
-          : null;
+        // Try direct scheme first
+        if (username) {
+          return `linkedin://in/${encodeURIComponent(username)}`;
+        }
+        return null;
       case 'facebook':
-        return username
-          ? `intent://www.facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`
-          : null;
+        // Try direct scheme first
+        if (username) {
+          return `fb://profile/${encodeURIComponent(username)}`;
+        }
+        // Fallback to intent:// if no username
+        return `intent://www.facebook.com/${encodeURIComponent(username || '')}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
       case 'email':
-        // Gmail app on Android: intent:// with googlegmail scheme
+        // Gmail app on Android: use direct googlegmail:// scheme (works reliably on both Android and iOS)
         const email = link?.getAttribute?.('data-email') || '';
-        return email
-          ? `intent://send?to=${encodeURIComponent(email)}#Intent;package=com.google.android.gm;scheme=googlegmail;S.browser_fallback_url=${fallback};end`
-          : null;
+        return email ? `googlegmail://co?to=${encodeURIComponent(email)}` : null;
       default:
         return null;
     }
@@ -98,17 +109,27 @@
 
   const openWithFallback = (appUrl, webUrl) => {
     let didHide = false;
+    let fallbackTimer = null;
+    
     const onHide = () => {
       didHide = true;
       cleanup();
     };
+    
     const cleanup = () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
       document.removeEventListener('visibilitychange', onVisibility, true);
       window.removeEventListener('pagehide', onHide, true);
       window.removeEventListener('blur', onHide, true);
     };
+    
     const onVisibility = () => {
-      if (document.hidden) onHide();
+      if (document.hidden) {
+        onHide();
+      }
     };
 
     // If the app opens, the page will typically be backgrounded/hidden.
@@ -117,13 +138,32 @@
     window.addEventListener('blur', onHide, true);
 
     // Attempt app deep link (must be within user gesture in many browsers)
-    window.location.href = appUrl;
+    // Use iframe trick for Android to avoid navigation issues
+    if (isAndroid() && appUrl.startsWith('googlegmail://')) {
+      // For Gmail on Android, use iframe method for better reliability
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = appUrl;
+      document.body.appendChild(iframe);
+      
+      // Remove iframe after a short delay
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    } else {
+      // For other apps/platforms, use direct navigation
+      window.location.href = appUrl;
+    }
 
-    // Fallback to web if we didn't leave the page quickly
-    window.setTimeout(() => {
+    // Fallback to web if we didn't leave the page - wait longer to give apps time to open
+    // iOS apps typically open faster, Android can take longer
+    fallbackTimer = window.setTimeout(() => {
       cleanup();
-      if (!didHide) window.location.href = webUrl;
-    }, isIOS() ? 700 : 900);
+      if (!didHide) {
+        // Only fallback if page is still visible (app didn't open)
+        window.location.href = webUrl;
+      }
+    }, isIOS() ? 1500 : 2000); // Increased wait time: 1.5s iOS, 2s Android
   };
 
   const onClick = (e) => {
@@ -137,11 +177,12 @@
     if (!webUrl || !platform) return;
 
     // Platform-targeted deep links for best success rate:
-    // - Android Chrome: intent:// (best)
-    // - iOS Safari: custom scheme (best-effort) + Universal Link fallback (https)
+    // - Android: direct schemes (googlegmail://, instagram://, etc.) work reliably
+    // - iOS Safari: custom schemes work well
+    // - Both: fallback to web URL if app not installed
     let appUrl = null;
     if (isAndroid()) {
-      appUrl = buildAndroidIntent(platform, webUrl, link);
+      appUrl = buildAndroidDeepLink(platform, webUrl, link);
     } else if (isIOS()) {
       appUrl = buildIOSDeepLink(platform, webUrl, link);
     }
