@@ -84,8 +84,16 @@
         const subjectIOS = 'Contact from Digital Business Card';
         const bodyIOS = `Hello ${nameIOS || 'there'},\n\n`;
         
-        // Gmail app scheme for iOS
-        return `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
+        // Build Gmail web URL for fallback
+        const gmailWebUrlIOS = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailIOS)}&su=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
+        const mailtoUrlIOS = `mailto:${encodeURIComponent(emailIOS)}?subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
+        
+        // Return object with primary (Gmail app), fallback (mailto), and web
+        return {
+          primary: `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`,
+          fallback: mailtoUrlIOS,
+          web: gmailWebUrlIOS
+        };
       default:
         return null;
     }
@@ -97,12 +105,13 @@
     
     switch (platform) {
       case 'instagram':
-        // Use Android Intent URL for maximum reliability
+        // Use Android Intent URL with proper path format
         if (username) {
-          // Intent URL with direct scheme fallback
-          return `intent://instagram.com/user/${encodeURIComponent(username)}/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
+          // Correct Intent URL format: intent://instagram.com/username#Intent;package=...;S.browser_fallback_url=...;end
+          // The browser_fallback_url will automatically open web if app not installed
+          return `intent://instagram.com/${encodeURIComponent(username)}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
         }
-        // Fallback to web URL if no username
+        // If no username, return web URL directly (will be handled as fallback)
         return null;
       case 'twitter':
         // Use Android Intent URL for Twitter/X
@@ -124,7 +133,7 @@
         // Fallback to web URL if no username
         return null;
       case 'email':
-        // Gmail app on Android: use googlegmail:// scheme with pre-filled compose
+        // Gmail app on Android: try multiple methods for maximum reliability
         const emailAndroid = link?.getAttribute?.('data-email') || '';
         const nameAndroid = link?.getAttribute?.('data-name') || '';
         if (!emailAndroid) return null;
@@ -133,8 +142,21 @@
         const subjectAndroid = 'Contact from Digital Business Card';
         const bodyAndroid = `Hello ${nameAndroid || 'there'},\n\n`;
         
-        // Gmail app scheme for Android (googlegmail:// works better than intent:// for Gmail)
-        return `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
+        // Build Gmail compose URL for web fallback
+        const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailAndroid)}&su=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
+        const gmailWebFallback = encodeURIComponent(gmailWebUrl);
+        
+        // Build mailto URL (works with any email app)
+        const mailtoUrl = `mailto:${encodeURIComponent(emailAndroid)}?subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
+        
+        // Primary: Try googlegmail:// scheme first (most reliable for Gmail app)
+        // Fallback 1: mailto: (opens default email app)
+        // Fallback 2: Gmail web compose
+        return {
+          primary: `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`,
+          fallback: mailtoUrl,
+          web: gmailWebUrl
+        };
       default:
         return null;
     }
@@ -143,12 +165,26 @@
   /**
    * Open app with smart fallback to web
    * Uses multiple detection methods to determine if app opened successfully
+   * Handles both simple URLs and complex objects (for email with multiple fallbacks)
    */
   const openWithFallback = (appUrl, webUrl) => {
+    // Handle email case where appUrl is an object with primary, fallback, and web
+    let primaryUrl = appUrl;
+    let fallbackUrl = null;
+    let finalWebUrl = webUrl;
+    
+    if (typeof appUrl === 'object' && appUrl.primary) {
+      primaryUrl = appUrl.primary;
+      fallbackUrl = appUrl.fallback;
+      finalWebUrl = appUrl.web || webUrl;
+    }
+    
     let didHide = false;
     let didBlur = false;
     let fallbackTimer = null;
     let visibilityTimer = null;
+    let attemptCount = 0;
+    const maxAttempts = 2; // Try primary, then fallback if available
     
     const onHide = () => {
       didHide = true;
@@ -189,59 +225,85 @@
     window.addEventListener('pagehide', onHide, true);
     window.addEventListener('blur', onBlur, true);
 
-    // Attempt app deep link (must be within user gesture in many browsers)
-    // Use iframe trick for Android Gmail and Intent URLs to avoid navigation issues
-    if (isAndroid() && (appUrl.startsWith('googlegmail://') || appUrl.startsWith('intent://'))) {
-      // For Android, use iframe method for better reliability (avoids page navigation)
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = 'none';
-      iframe.src = appUrl;
-      document.body.appendChild(iframe);
-      
-      // Remove iframe after a delay
-      setTimeout(() => {
+    /**
+     * Attempt to open URL (app or fallback)
+     */
+    const attemptOpen = (url) => {
+      if (isAndroid() && (url.startsWith('intent://') || url.startsWith('googlegmail://'))) {
+        // For Android Intent URLs, use window.location for better fallback handling
+        // The Intent URL's browser_fallback_url will automatically redirect if app not installed
         try {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
+          window.location.href = url;
         } catch (e) {
-          // Ignore errors during cleanup
+          // If that fails, try creating a link
+          const link = document.createElement('a');
+          link.href = url;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            try {
+              if (link.parentNode) {
+                document.body.removeChild(link);
+              }
+            } catch (err) {
+              // Ignore cleanup errors
+            }
+          }, 100);
         }
-      }, 1500);
-    } else {
-      // For iOS and other platforms, use direct navigation
-      try {
-        window.location.href = appUrl;
-      } catch (e) {
-        // If direct navigation fails, try creating a link and clicking it
-        const link = document.createElement('a');
-        link.href = appUrl;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          try {
-            document.body.removeChild(link);
-          } catch (err) {
-            // Ignore cleanup errors
-          }
-        }, 100);
+      } else {
+        // For iOS and other platforms, use direct navigation
+        try {
+          window.location.href = url;
+        } catch (e) {
+          // If direct navigation fails, try creating a link and clicking it
+          const link = document.createElement('a');
+          link.href = url;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            try {
+              if (link.parentNode) {
+                document.body.removeChild(link);
+              }
+            } catch (err) {
+              // Ignore cleanup errors
+            }
+          }, 100);
+        }
       }
-    }
+    };
+
+    // Attempt to open primary URL (app)
+    attemptOpen(primaryUrl);
 
     // Smart fallback timing: wait longer for Android (Intent URLs can be slower)
     // iOS apps typically open faster
-    const fallbackDelay = isIOS() ? 1800 : 2500; // 1.8s iOS, 2.5s Android
+    const fallbackDelay = isIOS() ? 2000 : 3000; // 2s iOS, 3s Android (increased for better detection)
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
       // Only fallback if page is still visible and didn't blur (app didn't open)
       if (!didHide && !didBlur && !document.hidden) {
-        // App didn't open, fallback to web
-        window.location.href = webUrl;
+        attemptCount++;
+        
+        // If we have a fallback URL (like mailto:), try it first
+        if (fallbackUrl && attemptCount === 1) {
+          // Try mailto: fallback (opens default email app)
+          attemptOpen(fallbackUrl);
+          
+          // Set another timer for final web fallback
+          setTimeout(() => {
+            if (!didHide && !didBlur && !document.hidden) {
+              // Final fallback to web
+              window.location.href = finalWebUrl;
+            }
+          }, 2000);
+        } else {
+          // No fallback URL or already tried, go directly to web
+          window.location.href = finalWebUrl;
+        }
       }
     }, fallbackDelay);
   };
