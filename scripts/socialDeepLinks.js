@@ -272,49 +272,32 @@
 
   const buildAndroidDeepLink = (platform, webUrl, link) => {
     const username = getUsernameFromUrl(webUrl);
-    const fallback = encodeURIComponent(webUrl);
     
-    // On desktop: Use direct app schemes (will fail gracefully and fallback to web)
-    // On Android: Use Intent URLs (most reliable)
-    const useIntentURL = isAndroid() && !isDesktop();
+    // CRITICAL FIX: Use direct app schemes instead of Intent URLs
+    // Intent URLs automatically redirect to browser_fallback_url, bypassing our modal
+    // Direct schemes fail silently if app not installed, allowing us to show the modal
+    // This gives us full control over the fallback experience
     
     switch (platform) {
       case 'instagram':
         if (username) {
-          if (useIntentURL) {
-            // Android: Use Intent URL (most reliable with automatic fallback)
-            return `intent://instagram.com/${encodeURIComponent(username)}#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=${fallback};end`;
-          } else {
-            // Desktop/Other: Try direct scheme (will fail quickly, then fallback to web)
-            return `instagram://user?username=${encodeURIComponent(username)}`;
-          }
+          // Use direct scheme - works on Android and fails silently if app not installed
+          return `instagram://user?username=${encodeURIComponent(username)}`;
         }
         return null;
       case 'twitter':
         if (username) {
-          if (useIntentURL) {
-            return `intent://twitter.com/${encodeURIComponent(username)}#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=${fallback};end`;
-          } else {
-            return `twitter://user?screen_name=${encodeURIComponent(username)}`;
-          }
+          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
         }
         return null;
       case 'linkedin':
         if (username) {
-          if (useIntentURL) {
-            return `intent://linkedin.com/in/${encodeURIComponent(username)}#Intent;package=com.linkedin.android;scheme=https;S.browser_fallback_url=${fallback};end`;
-          } else {
-            return `linkedin://in/${encodeURIComponent(username)}`;
-          }
+          return `linkedin://in/${encodeURIComponent(username)}`;
         }
         return null;
       case 'facebook':
         if (username) {
-          if (useIntentURL) {
-            return `intent://facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
-          } else {
-            return `fb://profile/${encodeURIComponent(username)}`;
-          }
+          return `fb://profile/${encodeURIComponent(username)}`;
         }
         return null;
       case 'email':
@@ -364,17 +347,8 @@
       finalWebUrl = appUrl.web || webUrl;
     }
     
-    // Smart handling: On desktop, Intent URLs won't work, so skip them immediately
-    // On mobile Android, Intent URLs work great. On desktop, use direct schemes.
-    if (typeof primaryUrl === 'string' && primaryUrl.startsWith('intent://') && isDesktop()) {
-      // Desktop: Intent URLs don't work, go directly to web (fast fallback)
-      if (fallbackUrl) {
-        window.location.href = fallbackUrl;
-      } else {
-        window.location.href = finalWebUrl;
-      }
-      return;
-    }
+    // Note: We no longer use Intent URLs to avoid automatic browser redirect
+    // Direct app schemes are used instead, which fail silently if app not installed
     
     let didHide = false;
     let didBlur = false;
@@ -424,36 +398,40 @@
 
     /**
      * Attempt to open URL (app or fallback)
+     * Uses iframe method for app schemes to prevent page navigation
+     * This allows us to detect if app opened without losing page control
      */
     const attemptOpen = (url) => {
-      if (isAndroid() && (url.startsWith('intent://') || url.startsWith('googlegmail://'))) {
-        // For Android Intent URLs, use window.location for better fallback handling
-        // The Intent URL's browser_fallback_url will automatically redirect if app not installed
-        try {
-          window.location.href = url;
-        } catch (e) {
-          // If that fails, try creating a link
-          const link = document.createElement('a');
-          link.href = url;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            try {
-              if (link.parentNode) {
-                document.body.removeChild(link);
-              }
-            } catch (err) {
-              // Ignore cleanup errors
+      // For app schemes (instagram://, fb://, etc.), use iframe method
+      // This prevents automatic page navigation and allows us to detect app opening
+      if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
+        // App scheme detected - use iframe method (doesn't navigate page)
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
+        iframe.style.position = 'absolute';
+        iframe.style.left = '-9999px';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        
+        // Remove iframe after attempt
+        setTimeout(() => {
+          try {
+            if (iframe.parentNode) {
+              document.body.removeChild(iframe);
             }
-          }, 100);
-        }
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }, 1000);
       } else {
-        // For iOS and other platforms, use direct navigation
+        // For http/https/mailto URLs, use standard navigation
         try {
           window.location.href = url;
         } catch (e) {
-          // If direct navigation fails, try creating a link and clicking it
+          // If direct navigation fails, try creating a link
           const link = document.createElement('a');
           link.href = url;
           link.style.display = 'none';
@@ -478,7 +456,8 @@
     // Smart fallback timing: 
     // - Desktop: Very short timeout (apps won't open, fail fast)
     // - Mobile: Longer timeout to give apps time to open
-    const fallbackDelay = isDesktop() ? 500 : (isIOS() ? 2000 : 3000);
+    // - Increased timeout for better detection accuracy
+    const fallbackDelay = isDesktop() ? 800 : (isIOS() ? 2500 : 3500);
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
