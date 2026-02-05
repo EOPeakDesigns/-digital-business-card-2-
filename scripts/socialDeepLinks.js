@@ -67,6 +67,149 @@
     return androidUA && !isDesktopBrowser;
   };
 
+  /**
+   * Get app store URLs for each platform
+   * Returns Play Store (Android) or App Store (iOS) URLs
+   */
+  const getAppStoreUrl = (platform) => {
+    const storeUrls = {
+      instagram: {
+        android: 'https://play.google.com/store/apps/details?id=com.instagram.android',
+        ios: 'https://apps.apple.com/app/instagram/id389801252'
+      },
+      facebook: {
+        android: 'https://play.google.com/store/apps/details?id=com.facebook.katana',
+        ios: 'https://apps.apple.com/app/facebook/id284882215'
+      },
+      twitter: {
+        android: 'https://play.google.com/store/apps/details?id=com.twitter.android',
+        ios: 'https://apps.apple.com/app/twitter/id333903271'
+      },
+      linkedin: {
+        android: 'https://play.google.com/store/apps/details?id=com.linkedin.android',
+        ios: 'https://apps.apple.com/app/linkedin/id288429040'
+      },
+      email: {
+        android: 'https://play.google.com/store/apps/details?id=com.google.android.gm',
+        ios: 'https://apps.apple.com/app/gmail-email-by-google/id422689480'
+      }
+    };
+
+    if (!storeUrls[platform]) return null;
+    
+    if (isAndroid()) {
+      return storeUrls[platform].android;
+    } else if (isIOS()) {
+      return storeUrls[platform].ios;
+    }
+    
+    // Desktop: return Android Play Store (can be opened in browser)
+    return storeUrls[platform].android;
+  };
+
+  /**
+   * Get platform-specific app name for display
+   */
+  const getAppName = (platform) => {
+    const names = {
+      instagram: 'Instagram',
+      facebook: 'Facebook',
+      twitter: 'X (Twitter)',
+      linkedin: 'LinkedIn',
+      email: 'Gmail'
+    };
+    return names[platform] || 'App';
+  };
+
+  /**
+   * Show app download modal with store and web options
+   */
+  const showAppDownloadModal = (platform, webUrl) => {
+    const modal = document.getElementById('app-download-modal');
+    const modalClose = document.querySelector('.app-download-modal-close');
+    const modalOverlay = document.querySelector('.app-download-modal-overlay');
+    const storeBtn = document.getElementById('app-download-store-btn');
+    const webBtn = document.getElementById('app-download-web-btn');
+    const messageEl = document.getElementById('app-download-message');
+    const storeTextEl = document.getElementById('app-download-store-text');
+    const iconEl = document.getElementById('app-download-icon');
+    
+    if (!modal) return;
+
+    const appName = getAppName(platform);
+    const storeUrl = getAppStoreUrl(platform);
+    
+    // Update modal content
+    messageEl.textContent = `${appName} is not installed on your device. Would you like to download it?`;
+    
+    // Set store button
+    if (storeUrl) {
+      storeBtn.href = storeUrl;
+      storeBtn.style.display = 'inline-flex';
+      if (isAndroid()) {
+        storeTextEl.textContent = 'Download from Play Store';
+        iconEl.className = 'fa-brands fa-google-play';
+      } else if (isIOS()) {
+        storeTextEl.textContent = 'Download from App Store';
+        iconEl.className = 'fa-brands fa-app-store-ios';
+      } else {
+        storeTextEl.textContent = 'Download App';
+        iconEl.className = 'fa-solid fa-download';
+      }
+    } else {
+      storeBtn.style.display = 'none';
+    }
+    
+    // Set web button
+    webBtn.href = webUrl;
+    
+    // Show modal
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    
+    // Focus management
+    setTimeout(() => {
+      if (storeBtn && storeUrl) {
+        storeBtn.focus();
+      } else if (webBtn) {
+        webBtn.focus();
+      }
+    }, 100);
+    
+    // Close handlers
+    const closeModal = () => {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    };
+    
+    if (modalClose) {
+      modalClose.onclick = closeModal;
+    }
+    
+    if (modalOverlay) {
+      modalOverlay.onclick = closeModal;
+    }
+    
+    // Keyboard support (Escape key)
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('active')) {
+        closeModal();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    
+    // Clean up on button click
+    storeBtn.onclick = () => {
+      setTimeout(closeModal, 100);
+    };
+    webBtn.onclick = () => {
+      setTimeout(closeModal, 100);
+    };
+  };
+
   const getUsernameFromUrl = (url) => {
     try {
       const u = new URL(url);
@@ -205,11 +348,11 @@
   };
 
   /**
-   * Open app with smart fallback to web
+   * Open app with smart fallback to download modal or web
    * Uses multiple detection methods to determine if app opened successfully
    * Handles both simple URLs and complex objects (for email with multiple fallbacks)
    */
-  const openWithFallback = (appUrl, webUrl) => {
+  const openWithFallback = (appUrl, webUrl, platform = null) => {
     // Handle email case where appUrl is an object with primary, fallback, and web
     let primaryUrl = appUrl;
     let fallbackUrl = null;
@@ -343,24 +486,60 @@
       if (!didHide && !didBlur && !document.hidden) {
         attemptCount++;
         
-        // If we have a fallback URL (like mailto:), try it first
-        if (fallbackUrl && attemptCount === 1) {
+        // For email: try mailto: fallback first
+        if (fallbackUrl && attemptCount === 1 && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
           // Try mailto: fallback (opens default email app)
           attemptOpen(fallbackUrl);
           
-          // Set another timer for final web fallback
+          // Set another timer for final web fallback or modal
           setTimeout(() => {
             if (!didHide && !didBlur && !document.hidden) {
-              // Final fallback to web
-              window.location.href = finalWebUrl;
+              // Show download modal for email
+              showAppDownloadModal('email', finalWebUrl);
             }
           }, 2000);
         } else {
-          // No fallback URL or already tried, go directly to web
-          window.location.href = finalWebUrl;
+          // For social media or if mailto failed: show download modal
+          // Use passed platform parameter or extract from context
+          const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
+          if (detectedPlatform && isMobile()) {
+            // On mobile: show download modal with app store options
+            showAppDownloadModal(detectedPlatform, finalWebUrl);
+          } else {
+            // On desktop or no platform detected: go directly to web
+            window.location.href = finalWebUrl;
+          }
         }
       }
     }, fallbackDelay);
+  };
+
+  /**
+   * Extract platform from URL or context
+   */
+  const getPlatformFromContext = (webUrl, appUrl) => {
+    // Try to extract from webUrl
+    if (webUrl) {
+      if (webUrl.includes('instagram.com')) return 'instagram';
+      if (webUrl.includes('facebook.com')) return 'facebook';
+      if (webUrl.includes('twitter.com') || webUrl.includes('x.com')) return 'twitter';
+      if (webUrl.includes('linkedin.com')) return 'linkedin';
+      if (webUrl.includes('mail.google.com') || webUrl.includes('mailto:')) return 'email';
+    }
+    
+    // Try to extract from appUrl
+    if (appUrl) {
+      const urlStr = typeof appUrl === 'object' ? appUrl.primary : appUrl;
+      if (urlStr) {
+        if (urlStr.includes('instagram')) return 'instagram';
+        if (urlStr.includes('facebook') || urlStr.includes('fb://')) return 'facebook';
+        if (urlStr.includes('twitter')) return 'twitter';
+        if (urlStr.includes('linkedin')) return 'linkedin';
+        if (urlStr.includes('gmail') || urlStr.includes('mailto')) return 'email';
+      }
+    }
+    
+    return null;
   };
 
   /**
@@ -408,7 +587,7 @@
       if (appUrl) {
         e.preventDefault();
         e.stopPropagation();
-        openWithFallback(appUrl, webUrl);
+        openWithFallback(appUrl, webUrl, platform);
         return;
       }
       // If no app URL could be built, let normal navigation happen
@@ -448,10 +627,10 @@
     }
 
     // Prevent default navigation and try app first (works on all platforms)
-    // If app doesn't open, fallback mechanism will redirect to web
+    // If app doesn't open, fallback mechanism will show download modal (mobile) or redirect to web (desktop)
     e.preventDefault();
     e.stopPropagation();
-    openWithFallback(appUrl, webUrl);
+    openWithFallback(appUrl, webUrl, platform);
   };
 
   document.addEventListener('click', onClick, true);

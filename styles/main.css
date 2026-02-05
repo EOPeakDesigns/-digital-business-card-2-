@@ -691,6 +691,218 @@ button.social-icon {
 }
 
 /* ========================================
+   APP DOWNLOAD MODAL COMPONENT
+   ======================================== */
+.app-download-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.app-download-modal.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.app-download-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.app-download-modal-content {
+  position: relative;
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.app-download-modal.active .app-download-modal-content {
+  transform: scale(1);
+}
+
+.app-download-modal-header {
+  background-color: var(--yellow);
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.app-download-modal-title {
+  margin: 0;
+  color: var(--black);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.app-download-modal-close {
+  background: none;
+  border: none;
+  color: var(--black);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: var(--transition);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-download-modal-close:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  transform: scale(1.1);
+}
+
+.app-download-modal-body {
+  padding: 30px;
+  text-align: center;
+}
+
+.app-download-icon {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.app-download-icon i {
+  font-size: 48px;
+  color: var(--gray);
+}
+
+.app-download-message {
+  font-size: 16px;
+  color: var(--gray);
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.app-download-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border-radius: var(--btn-radius);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--transition);
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.app-download-primary {
+  background-color: var(--black);
+  color: var(--white);
+  border-color: var(--black);
+}
+
+.app-download-primary:hover {
+  background-color: var(--white);
+  color: var(--black);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.app-download-secondary {
+  background-color: var(--white);
+  color: var(--black);
+  border-color: var(--gray);
+}
+
+.app-download-secondary:hover {
+  background-color: var(--light-gray);
+  border-color: var(--black);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.app-download-btn i {
+  font-size: 16px;
+}
+
+/* Mobile-specific: Disable hover effects on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  .app-download-modal-close:hover,
+  .app-download-modal-close:focus {
+    background-color: transparent;
+    transform: none;
+  }
+  
+  .app-download-primary:hover,
+  .app-download-primary:focus {
+    background-color: var(--black);
+    color: var(--white);
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .app-download-secondary:hover,
+  .app-download-secondary:focus {
+    background-color: var(--white);
+    border-color: var(--gray);
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* App Download Modal Responsive */
+@media (max-width: 480px) {
+  .app-download-modal-content {
+    width: 95%;
+    margin: 20px;
+  }
+  
+  .app-download-modal-body {
+    padding: 20px;
+  }
+  
+  .app-download-icon i {
+    font-size: 40px;
+  }
+  
+  .app-download-message {
+    font-size: 14px;
+  }
+  
+  .app-download-btn {
+    padding: 12px 20px;
+    font-size: 13px;
+  }
+}
+
+/* ========================================
    RESPONSIVE DESIGN BREAKPOINTS
    
    Comprehensive responsive design covering all screen sizes:

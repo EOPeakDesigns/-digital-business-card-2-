@@ -122,6 +122,37 @@
     </div>
   </div>
 
+  <!-- App Download Modal -->
+  <div id="app-download-modal" class="app-download-modal" role="dialog" aria-modal="true" aria-labelledby="app-download-modal-title" aria-hidden="true">
+    <div class="app-download-modal-overlay"></div>
+    <div class="app-download-modal-content">
+      <div class="app-download-modal-header">
+        <h3 id="app-download-modal-title" class="app-download-modal-title">App Not Installed</h3>
+        <button class="app-download-modal-close" aria-label="Close">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div class="app-download-modal-body">
+        <div class="app-download-icon">
+          <i class="fa-solid fa-mobile-screen-button" id="app-download-icon"></i>
+        </div>
+        <p class="app-download-message" id="app-download-message">
+          The app is not installed on your device. Would you like to download it?
+        </p>
+        <div class="app-download-actions">
+          <a href="#" id="app-download-store-btn" class="app-download-btn app-download-primary" target="_blank" rel="noopener noreferrer">
+            <i class="fa-solid fa-download" id="app-download-store-icon"></i>
+            <span id="app-download-store-text">Download App</span>
+          </a>
+          <a href="#" id="app-download-web-btn" class="app-download-btn app-download-secondary" target="_blank" rel="noopener noreferrer">
+            <i class="fa-solid fa-globe"></i>
+            <span>Open in Browser</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Screen-reader announcements (non-visual) -->
   <div class="sr-only" id="a11y-status" aria-live="polite" aria-atomic="true"></div>
 
