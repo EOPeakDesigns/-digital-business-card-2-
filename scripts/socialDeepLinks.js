@@ -59,9 +59,16 @@
         // Fallback to facewebmodal if no username extracted
         return `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`;
       case 'email':
-        // Gmail app on iOS: googlegmail://co?to=<email> (works reliably)
-        const email = link?.getAttribute?.('data-email') || '';
-        return email ? `googlegmail://co?to=${encodeURIComponent(email)}` : null;
+        // Gmail app on iOS: googlegmail://co?to=<email>&subject=<subject>&body=<body>
+        const emailIOS = link?.getAttribute?.('data-email') || '';
+        const nameIOS = link?.getAttribute?.('data-name') || '';
+        if (!emailIOS) return null;
+        
+        // Pre-fill compose with greeting and business card context
+        const subjectIOS = 'Contact from Digital Business Card';
+        const bodyIOS = `Hello ${nameIOS || 'there'},\n\n`;
+        
+        return `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
       default:
         return null;
     }
@@ -99,9 +106,16 @@
         // Fallback to intent:// if no username
         return `intent://www.facebook.com/${encodeURIComponent(username || '')}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`;
       case 'email':
-        // Gmail app on Android: use direct googlegmail:// scheme (works reliably on both Android and iOS)
-        const email = link?.getAttribute?.('data-email') || '';
-        return email ? `googlegmail://co?to=${encodeURIComponent(email)}` : null;
+        // Gmail app on Android: use direct googlegmail:// scheme with pre-filled compose
+        const emailAndroid = link?.getAttribute?.('data-email') || '';
+        const nameAndroid = link?.getAttribute?.('data-name') || '';
+        if (!emailAndroid) return null;
+        
+        // Pre-fill compose with greeting and business card context
+        const subjectAndroid = 'Contact from Digital Business Card';
+        const bodyAndroid = `Hello ${nameAndroid || 'there'},\n\n`;
+        
+        return `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
       default:
         return null;
     }
