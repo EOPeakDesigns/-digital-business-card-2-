@@ -19,6 +19,7 @@ const CORE_ASSETS = [
   '/scripts/qrCodeHandler.js',
   '/scripts/vCardHandler.js',
   '/scripts/pwa.js',
+  '/scripts/socialDeepLinks.js',
   '/manifest.webmanifest',
   '/assets/owner.png',
   '/assets/background.png',
