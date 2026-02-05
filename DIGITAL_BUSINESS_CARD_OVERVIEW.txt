@@ -1,0 +1,66 @@
+===============================
+DIGITAL BUSINESS CARD (EN / AR)
+===============================
+
+--------------------------------
+1) Business Description (EN)
+--------------------------------
+A modern digital business card built to convert visitors into real inquiries. It presents your brand in a premium, mobile-first layout and takes customers straight to the actions they care about—WhatsApp, email, website, maps, and social platforms—fast, clear, and frictionless.
+
+--------------------------------
+1) الوصف التجاري (AR)
+--------------------------------
+بطاقة أعمال رقمية عصرية مصمّمة لتحويل الزيارات إلى تواصل فعلي. تعرض علامتك بشكل أنيق وموجّه للموبايل، وتوصل العميل مباشرةً لأهم الإجراءات: واتساب، البريد، الموقع الإلكتروني، الخرائط، ومنصات التواصل—بسرعة ووضوح وبدون تعقيد.
+
+
+--------------------------------
+2) Features & Customer Value (EN)
+--------------------------------
+- Fast, clear contact actions: one tap to WhatsApp, email, website, maps, and socials.
+- Add to Contacts (vCard): customers can save your details on their phone in seconds.
+- Mobile-first conversion UX: designed for small phones first (≤ 425px), then tablets and desktops.
+- QR code experience: quick open/share + download when needed (ideal for real-world networking).
+- App-like usage (PWA): can be added to the home screen for instant access like an app.
+- Smart social experience: on mobile, social buttons open the native apps when installed; otherwise they open in the browser automatically.
+- Polished interactions: avoids “stuck hover/pressed” states for a clean, premium feel.
+
+--------------------------------
+2) المميزات والقيمة للعميل (AR)
+--------------------------------
+- تواصل سريع وواضح: لمسة واحدة لواتساب، البريد، الموقع الإلكتروني، الخرائط، ومنصات التواصل.
+- إضافة إلى جهات الاتصال (vCard): حفظ بياناتك على الهاتف خلال ثوانٍ.
+- تجربة موبايل أولاً للتحويل: محسّنة للشاشات الصغيرة (≤ 425px) ثم التابلت والكمبيوتر.
+- تجربة QR Code عملية: فتح/مشاركة سريعة مع إمكانية تنزيل الكود عند الحاجة.
+- استخدام كتطبيق (PWA): يمكن إضافتها للشاشة الرئيسية للوصول الفوري مثل التطبيقات.
+- تجربة سوشيال ذكية: على الموبايل، الأزرار تفتح التطبيقات مباشرةً عند توفرها، وإن لم تكن موجودة تفتح الرابط في المتصفح تلقائياً.
+- تفاعلات مصقولة: بدون تأثير “الضغط/الهوفر العالق” لتجربة فاخرة ونظيفة.
+
+
+--------------------------------
+3) Note: Physical Business Cards (EN)
+--------------------------------
+Prefer something you can hand out in person too? We can also design premium physical business cards that match your brand identity and align perfectly with your digital card—so your presence looks consistent and professional online and offline.
+
+--------------------------------
+3) ملاحظة: بطاقات أعمال مطبوعة (AR)
+--------------------------------
+هل تفضّل بطاقة مطبوعة للتسليم المباشر أيضاً؟ يمكننا كذلك تصميم بطاقات أعمال ورقية فاخرة بنفس هوية علامتك، ومتناسقة تماماً مع البطاقة الرقمية—لتظهر بشكل احترافي ومتّسق أونلاين وأوفلاين.
+
+
+--------------------------------
+4) Technologies Used (EN)
+--------------------------------
+- HTML5, CSS3, Vanilla JavaScript
+- Responsive design system (design tokens + mobile-first breakpoints)
+- vCard / VCF (Add to Contacts)
+- PWA (Installable + offline-ready via manifest + service worker)
+
+--------------------------------
+4) التقنيات المستخدمة (AR)
+--------------------------------
+- HTML5 و CSS3 و JavaScript (Vanilla)
+- نظام استجابة (Design Tokens + نقاط موبايل أولاً)
+- vCard / VCF (إضافة إلى جهات الاتصال)
+- PWA (قابل للتثبيت + جاهز دون إنترنت عبر Manifest + Service Worker)
+
+

@@ -1,13 +1,13 @@
 /**
- * Social Deep Links
- * Attempts to open social profiles in native apps on mobile, with safe web fallback.
+ * Social Deep Links & Email App Links
+ * Attempts to open social profiles and email in native apps on mobile, with safe web fallback.
  *
  * Why:
  * - Universal links (https) often open apps, but not always—especially with new tabs.
  * - Custom schemes can open apps directly when installed.
  *
  * Strategy:
- * - On mobile, intercept clicks on `.social-link`
+ * - On mobile, intercept clicks on `.social-link` and `.email-link`
  * - Attempt app deep link first (user gesture)
  * - Fallback to the normal https URL if the app isn't installed / blocked
  *
@@ -37,7 +37,7 @@
     }
   };
 
-  const buildIOSDeepLink = (platform, webUrl) => {
+  const buildIOSDeepLink = (platform, webUrl, link) => {
     const username = getUsernameFromUrl(webUrl);
 
     switch (platform) {
@@ -55,12 +55,16 @@
         // If it fails, the fallback web URL will typically open the app via Universal Links
         // (when the Facebook app is installed) on iOS Safari.
         return `fb://facewebmodal/f?href=${encodeURIComponent(webUrl)}`;
+      case 'email':
+        // Gmail app on iOS: googlegmail://co?to=<email>
+        const email = link?.getAttribute?.('data-email') || '';
+        return email ? `googlegmail://co?to=${encodeURIComponent(email)}` : null;
       default:
         return null;
     }
   };
 
-  const buildAndroidIntent = (platform, webUrl) => {
+  const buildAndroidIntent = (platform, webUrl, link) => {
     const username = getUsernameFromUrl(webUrl);
     const fallback = encodeURIComponent(webUrl);
     switch (platform) {
@@ -80,6 +84,12 @@
       case 'facebook':
         return username
           ? `intent://www.facebook.com/${encodeURIComponent(username)}#Intent;package=com.facebook.katana;scheme=https;S.browser_fallback_url=${fallback};end`
+          : null;
+      case 'email':
+        // Gmail app on Android: intent:// with googlegmail scheme
+        const email = link?.getAttribute?.('data-email') || '';
+        return email
+          ? `intent://send?to=${encodeURIComponent(email)}#Intent;package=com.google.android.gm;scheme=googlegmail;S.browser_fallback_url=${fallback};end`
           : null;
       default:
         return null;
@@ -117,7 +127,8 @@
   };
 
   const onClick = (e) => {
-    const link = e.target?.closest?.('.social-link');
+    // Support both social links and email links
+    const link = e.target?.closest?.('.social-link, .email-link');
     if (!link) return;
     if (!isMobile()) return; // On desktop, keep default behavior (web in browser).
 
@@ -130,9 +141,9 @@
     // - iOS Safari: custom scheme (best-effort) + Universal Link fallback (https)
     let appUrl = null;
     if (isAndroid()) {
-      appUrl = buildAndroidIntent(platform, webUrl);
+      appUrl = buildAndroidIntent(platform, webUrl, link);
     } else if (isIOS()) {
-      appUrl = buildIOSDeepLink(platform, webUrl);
+      appUrl = buildIOSDeepLink(platform, webUrl, link);
     }
     if (!appUrl) return; // If we can't build a reliable app URL, let normal navigation happen.
 
