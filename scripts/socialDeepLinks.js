@@ -456,11 +456,18 @@
     // Ensure we have a valid web URL for fallback
     const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
     
-    // Track app opening state
+    // MOBILE-FIRST: Enhanced app detection system
+    // Track initial state BEFORE attempting to open app
+    const initialHiddenState = document.hidden;
+    const startTime = Date.now();
+    
+    // Track app opening state with multiple indicators
     let appOpened = false;
+    let detectionConfirmed = false;
     let fallbackTimer = null;
     let visibilityTimer = null;
     let safetyNetTimer = null;
+    let detectionInterval = null;
     
     // Cleanup function
     const cleanup = () => {
@@ -480,71 +487,125 @@
           modalState.safetyNetTimer = null;
         }
       }
+      if (detectionInterval) {
+        clearInterval(detectionInterval);
+        detectionInterval = null;
+      }
       document.removeEventListener('visibilitychange', onVisibilityChange, true);
       window.removeEventListener('pagehide', onPageHide, true);
       window.removeEventListener('blur', onBlur, true);
+      window.removeEventListener('focus', onFocus, true);
     };
     
-    // Detection handlers - simplified and more reliable
-    const onVisibilityChange = () => {
-      if (document.hidden) {
+    // Enhanced detection function - checks multiple indicators
+    const checkIfAppOpened = () => {
+      // Don't check if already confirmed
+      if (detectionConfirmed) return true;
+      
+      // Method 1: Check document.hidden (most reliable)
+      const isHidden = document.hidden;
+      
+      // Method 2: Check if page was hidden AFTER we started (not before)
+      const wasHiddenAfterStart = isHidden && !initialHiddenState;
+      
+      // Method 3: Check time elapsed (apps usually open within 500ms)
+      const timeElapsed = Date.now() - startTime;
+      const quickHide = wasHiddenAfterStart && timeElapsed < 2000;
+      
+      // Method 4: Check if page lost focus (blur event)
+      // This is validated separately in onBlur handler
+      
+      // App opened if: page became hidden after we started AND it happened quickly
+      if (wasHiddenAfterStart && quickHide) {
         appOpened = true;
+        detectionConfirmed = true;
         cleanup();
+        return true;
+      }
+      
+      return false;
+    };
+    
+    // Detection handlers - enhanced and more reliable
+    const onVisibilityChange = () => {
+      if (checkIfAppOpened()) {
+        return; // Already handled
       }
     };
     
     const onPageHide = () => {
-      appOpened = true;
-      cleanup();
+      // pagehide is a strong indicator that app opened
+      if (!detectionConfirmed) {
+        appOpened = true;
+        detectionConfirmed = true;
+        cleanup();
+      }
     };
     
     const onBlur = () => {
-      // On Android, blur can fire even if app doesn't open
-      // Use a short delay to verify if page actually becomes hidden
+      // On Android/iOS, blur can fire when app opens
+      // But also can fire for other reasons, so validate with visibility
       visibilityTimer = setTimeout(() => {
-        if (document.hidden) {
-          appOpened = true;
-          cleanup();
+        if (!detectionConfirmed && checkIfAppOpened()) {
+          return; // Already handled
         }
-      }, 200);
+        // Clear timer reference
+        visibilityTimer = null;
+      }, 300); // Slightly longer delay for validation
+    };
+    
+    const onFocus = () => {
+      // If page regains focus quickly, app probably didn't open
+      // This helps prevent false positives
+      const timeElapsed = Date.now() - startTime;
+      if (timeElapsed < 500 && !document.hidden) {
+        // Page focused back quickly - probably didn't open app
+        // But don't mark as failed yet, wait for main timeout
+      }
     };
     
     // Set up detection listeners BEFORE attempting to open app
     document.addEventListener('visibilitychange', onVisibilityChange, true);
     window.addEventListener('pagehide', onPageHide, true);
     window.addEventListener('blur', onBlur, true);
+    window.addEventListener('focus', onFocus, true);
+    
+    // MOBILE-FIRST: Continuous detection check (more reliable than single timeout)
+    // Check every 100ms for the first 2 seconds
+    detectionInterval = setInterval(() => {
+      if (checkIfAppOpened()) {
+        return; // App opened, stop checking
+      }
+      
+      // Stop checking after 2 seconds (main timeout will handle it)
+      const timeElapsed = Date.now() - startTime;
+      if (timeElapsed > 2000) {
+        clearInterval(detectionInterval);
+        detectionInterval = null;
+      }
+    }, 100);
 
     /**
-     * Attempt to open app URL using iframe method (more reliable on Android)
-     * This method doesn't navigate the page, allowing our timeout to work properly
+     * Attempt to open app URL - MOBILE-FIRST optimized method
+     * Uses window.location for better detection reliability
+     * This triggers proper visibility/blur events when app opens
      */
     const attemptOpenApp = (url) => {
-      // For app schemes (instagram://, fb://, etc.), use iframe method
-      // This is more reliable on Android - doesn't navigate the page
+      // For app schemes (instagram://, fb://, etc.), use window.location
+      // This is more reliable for detection - triggers proper events
       if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
         try {
-          // Method 1: Try iframe (most reliable, doesn't navigate page)
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.style.width = '1px';
-          iframe.style.height = '1px';
-          iframe.style.position = 'absolute';
-          iframe.style.left = '-9999px';
-          iframe.src = url;
-          document.body.appendChild(iframe);
+          // MOBILE-FIRST: Use window.location for app schemes
+          // This triggers visibilitychange/blur events reliably when app opens
+          // On mobile, if app doesn't exist, nothing happens (page stays visible)
+          // If app exists, page becomes hidden (detected by our listeners)
+          window.location.href = url;
           
-          // Remove iframe after a short delay
-          setTimeout(() => {
-            try {
-              if (iframe.parentNode) {
-                document.body.removeChild(iframe);
-              }
-            } catch (err) {
-              // Ignore cleanup errors
-            }
-          }, 1000);
+          // Note: We don't need to clean up because:
+          // - If app opens: page becomes hidden, cleanup() is called
+          // - If app doesn't open: page stays visible, timeout handles it
         } catch (e) {
-          // Fallback: Try link click method
+          // Fallback: Try link click method if window.location fails
           try {
             const link = document.createElement('a');
             link.href = url;
@@ -591,36 +652,56 @@
     attemptOpenApp(primaryUrl);
 
     // MOBILE-FIRST: Optimized timing for mobile devices
-    // - Mobile (Android/iOS): 1 second timeout (fast user feedback)
+    // - Mobile (Android/iOS): 1.5 seconds timeout (allows time for app to open)
     // - Desktop: 500ms timeout (apps won't open, fail fast)
-    const fallbackDelay = isMobile() ? 1000 : 500;
+    // Increased to 1.5s to give apps more time to open and trigger detection
+    const fallbackDelay = isMobile() ? 1500 : 500;
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
       
-      // CRITICAL: Check if app actually opened
-      // If app opened, page should be hidden or appOpened flag should be true
-      const appActuallyOpened = appOpened || document.hidden;
+      // CRITICAL: Final check if app actually opened
+      // Use multiple indicators for reliability
+      const timeElapsed = Date.now() - startTime;
+      const isCurrentlyHidden = document.hidden && !initialHiddenState;
+      const wasHiddenQuickly = isCurrentlyHidden && timeElapsed < 2000;
+      
+      // App opened if:
+      // 1. Detection confirmed flag is true, OR
+      // 2. Page is currently hidden AND wasn't hidden before we started, OR
+      // 3. Page became hidden quickly after we started (within 2 seconds)
+      const appActuallyOpened = detectionConfirmed || appOpened || wasHiddenQuickly;
       
       if (!appActuallyOpened) {
         // App didn't open - show fallback
         
         // For email: try mailto: fallback first (only on first attempt)
         if (fallbackUrl && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
-          // Try mailto: fallback (opens default email app)
-          attemptOpenApp(fallbackUrl);
-          
-          // Set another timer for final web fallback or modal
-          setTimeout(() => {
-            if (!document.hidden && !appOpened) {
-              // Mailto also didn't open - show download modal for email
-              if (detectedPlatform && isMobile()) {
-                showAppDownloadModal('email', urlToUse || finalWebUrl);
-              } else {
-                window.location.href = finalWebUrl;
+          // Check if primary app already opened before trying fallback
+          if (!appOpened && !detectionConfirmed) {
+            // Try mailto: fallback (opens default email app)
+            attemptOpenApp(fallbackUrl);
+            
+            // Set another timer for final web fallback or modal
+            // Use same detection logic - check if mailto opened
+            setTimeout(() => {
+              const mailtoTimeElapsed = Date.now() - startTime;
+              const mailtoIsHidden = document.hidden && !initialHiddenState;
+              const mailtoOpened = mailtoIsHidden && mailtoTimeElapsed < 3000;
+              
+              if (!mailtoOpened && !appOpened && !detectionConfirmed) {
+                // Mailto also didn't open - show download modal for email
+                if (detectedPlatform && isMobile()) {
+                  showAppDownloadModal('email', urlToUse || finalWebUrl);
+                } else {
+                  window.location.href = finalWebUrl;
+                }
               }
-            }
-          }, 1000);
+            }, 1500); // Give mailto time to open
+          } else {
+            // Primary app opened, skip fallback
+            return;
+          }
         } else {
           // For social media: show download modal on mobile, redirect to web on desktop
           if (isMobile() && detectedPlatform) {
@@ -639,18 +720,29 @@
     // This is critical for Android where detection might be less reliable
     // MOBILE-FIRST: Only set safety net if modal hasn't been shown or closed
     if (isMobile() && detectedPlatform) {
-      const safetyNetDelay = fallbackDelay + 800; // 0.8 seconds after main timeout
+      const safetyNetDelay = fallbackDelay + 500; // 0.5 seconds after main timeout
       safetyNetTimer = setTimeout(() => {
-        // Double-check: if modal is not visible and page is still visible, show modal
+        // Final verification before showing safety net modal
         const modal = document.getElementById('app-download-modal');
         const isModalVisible = modal && modal.classList.contains('active');
+        const timeElapsed = Date.now() - startTime;
+        const isCurrentlyHidden = document.hidden && !initialHiddenState;
         
-        // CRITICAL: Only show if:
+        // CRITICAL: Only show safety net if ALL conditions are met:
         // 1. Modal is not currently visible
         // 2. Modal was not closed by user
-        // 3. App didn't open
-        // 4. Page is still visible
-        if (!isModalVisible && !modalState.isClosed && !document.hidden && !appOpened) {
+        // 3. App detection was NOT confirmed
+        // 4. Page is NOT hidden (or was hidden before we started)
+        // 5. Enough time has passed (at least 2 seconds)
+        const shouldShowSafetyNet = 
+          !isModalVisible && 
+          !modalState.isClosed && 
+          !detectionConfirmed && 
+          !appOpened &&
+          !isCurrentlyHidden &&
+          timeElapsed >= 2000;
+        
+        if (shouldShowSafetyNet) {
           // Modal didn't show and app didn't open - show it now (safety net)
           showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
         }
