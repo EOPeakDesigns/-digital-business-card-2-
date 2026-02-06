@@ -198,8 +198,40 @@
   };
 
   /**
+   * Show notification toast message
+   * MOBILE-FIRST: Displays a temporary notification to the user
+   */
+  const showNotification = (message, duration = 4000) => {
+    const toast = document.getElementById('notification-toast');
+    const toastMessage = document.getElementById('notification-toast-message');
+    
+    if (!toast || !toastMessage) {
+      console.warn('Notification toast elements not found');
+      return;
+    }
+
+    toastMessage.textContent = message;
+    toast.classList.add('show');
+
+    // Announce to screen readers
+    const a11yStatus = document.getElementById('a11y-status');
+    if (a11yStatus) {
+      a11yStatus.textContent = '';
+      setTimeout(() => {
+        a11yStatus.textContent = message;
+      }, 10);
+    }
+
+    // Auto-hide after duration
+    setTimeout(() => {
+      toast.classList.remove('show');
+    }, duration);
+  };
+
+  /**
    * Show app download modal for social media
-   * MOBILE-FIRST: Always shows modal with 2 options (Browser, App/Store)
+   * MOBILE-FIRST: Always shows modal with 2 options (Browser, App)
+   * If app not installed, shows notification instead of redirecting to store
    */
   const showSocialMediaModal = (platform, webUrl, appUrl) => {
     const modal = document.getElementById('app-download-modal');
@@ -238,10 +270,10 @@
       window.open(webUrl, '_blank', 'noopener,noreferrer');
     };
 
-    // Button 2: Open in App (or App Store if not installed)
+    // Button 2: Open in App (shows notification if app not installed)
     const storeUrl = getAppStoreUrl(platform);
-    if (appUrl && storeUrl) {
-      // Try to open app, fallback to store if app not installed
+    if (appUrl) {
+      // Try to open app, show notification if app not installed
       storeBtnText.textContent = 'Open in App';
       if (storeBtnIcon) {
         storeBtnIcon.className = 'fa-solid fa-mobile-screen-button';
@@ -253,38 +285,37 @@
         e.stopPropagation();
         closeModal();
         
+        // Track initial state
+        const initialHiddenState = document.hidden;
+        const startTime = Date.now();
+        
         // Attempt to open app
         try {
           window.location.href = appUrl;
           
-          // If app doesn't open within 1 second, redirect to store
+          // Check if app opened within 1 second
           setTimeout(() => {
-            // Check if still on page (app didn't open)
-            if (document.visibilityState === 'visible') {
-              window.location.href = storeUrl;
+            const isHidden = document.hidden;
+            const wasHiddenAfterStart = isHidden && !initialHiddenState;
+            const timeElapsed = Date.now() - startTime;
+            const appOpened = wasHiddenAfterStart && timeElapsed < 1000;
+            
+            // If app didn't open, show notification
+            if (!appOpened && document.visibilityState === 'visible') {
+              const platformName = getPlatformDisplayName(platform);
+              const storeName = isAndroid() ? 'Play Store' : isIOS() ? 'App Store' : 'app store';
+              showNotification(`To open ${platformName} through the mobile app, please install it from the ${storeName}.`, 5000);
             }
           }, 1000);
         } catch (err) {
-          // If error, go to store
-          window.location.href = storeUrl;
+          // If error, show notification
+          const platformName = getPlatformDisplayName(platform);
+          const storeName = isAndroid() ? 'Play Store' : isIOS() ? 'App Store' : 'app store';
+          showNotification(`To open ${platformName} through the mobile app, please install it from the ${storeName}.`, 5000);
         }
       };
-    } else if (storeUrl) {
-      // No app URL, just show store button
-      storeBtnText.textContent = 'Download App';
-      if (storeBtnIcon) {
-        storeBtnIcon.className = 'fa-solid fa-download';
-      }
-      storeBtn.href = storeUrl;
-      storeBtn.style.display = 'inline-flex'; // Ensure visible
-      storeBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closeModal();
-        window.open(storeUrl, '_blank', 'noopener,noreferrer');
-      };
     } else {
-      // No store URL available, hide store button
+      // No app URL available, hide store button
       storeBtn.style.display = 'none';
     }
 
@@ -324,8 +355,10 @@
   };
 
   /**
-   * Open Gmail app directly (no modal)
-   * MOBILE-FIRST: Always opens Gmail app with pre-filled subject and body
+   * Open Gmail - Smart detection based on device
+   * MOBILE-FIRST: 
+   * - Smartphone: Opens Gmail mobile app directly
+   * - Desktop: Opens Gmail web browser
    */
   const openGmailApp = (link) => {
     const email = link?.getAttribute?.('data-email') || '';
@@ -339,25 +372,33 @@
     const subject = 'Contact from Digital Business Card';
     const body = `Hello ${name || 'there'},\n\n`;
     
-    let gmailUrl = null;
-    
-    if (isAndroid()) {
-      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    } else if (isIOS()) {
-      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    } else {
-      // Desktop: Try Gmail app scheme (may not work, but try anyway)
-      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    // DESKTOP: Open in browser (Gmail web)
+    if (isDesktop()) {
+      const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(gmailWebUrl, '_blank', 'noopener,noreferrer');
+      return;
     }
-
-    if (gmailUrl) {
+    
+    // MOBILE: Open Gmail mobile app directly
+    if (isMobile()) {
+      const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
       try {
-        window.location.href = gmailUrl;
+        // Track initial state
+        const initialHiddenState = document.hidden;
+        const startTime = Date.now();
         
-        // Fallback: If Gmail app doesn't open, try mailto: after 1 second
+        window.location.href = gmailAppUrl;
+        
+        // Check if Gmail app opened within 1 second
         setTimeout(() => {
-          if (document.visibilityState === 'visible') {
-            // Gmail app didn't open, try mailto:
+          const isHidden = document.hidden;
+          const wasHiddenAfterStart = isHidden && !initialHiddenState;
+          const timeElapsed = Date.now() - startTime;
+          const appOpened = wasHiddenAfterStart && timeElapsed < 1000;
+          
+          // If Gmail app didn't open, fallback to mailto:
+          if (!appOpened && document.visibilityState === 'visible') {
             const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             window.location.href = mailtoUrl;
           }
@@ -367,6 +408,22 @@
         const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         window.location.href = mailtoUrl;
       }
+      return;
+    }
+    
+    // Fallback for other devices: Try Gmail app, then mailto:
+    const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      window.location.href = gmailAppUrl;
+      setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          window.location.href = mailtoUrl;
+        }
+      }, 1000);
+    } catch (err) {
+      const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.location.href = mailtoUrl;
     }
   };
 

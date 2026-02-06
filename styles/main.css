@@ -1202,3 +1202,71 @@ button.social-icon {
   }
 }
 
+/* Notification Toast */
+.notification-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background-color: var(--black);
+  color: var(--white);
+  padding: 16px 24px;
+  border-radius: var(--border-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-width: 90%;
+  width: auto;
+  min-width: 280px;
+  pointer-events: none;
+}
+
+.notification-toast.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.notification-toast-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notification-toast-icon {
+  font-size: 20px;
+  color: var(--yellow);
+  flex-shrink: 0;
+}
+
+.notification-toast-message {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--white);
+}
+
+/* Notification Toast Responsive */
+@media (max-width: 480px) {
+  .notification-toast {
+    bottom: 15px;
+    left: 15px;
+    right: 15px;
+    max-width: none;
+    width: auto;
+    min-width: auto;
+    transform: translateY(100px);
+  }
+
+  .notification-toast.show {
+    transform: translateY(0);
+  }
+
+  .notification-toast-message {
+    font-size: 13px;
+  }
+}
+
