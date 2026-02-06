@@ -1,544 +1,246 @@
 /**
- * Social Deep Links & Email App Links
- * MOBILE-FIRST: User choice modal for social media, direct Gmail app for email
- * 
- * Strategy:
- * - Social Media: Always show modal with 2 options (Browser, App/Store)
- * - Email: Always open Gmail app directly (no modal)
- * - Works seamlessly on smartphones, tablets, and desktop
+ * Device-aware actions for Social + Email buttons (vanilla JS)
  *
- * Notes:
- * - Uses direct app schemes for maximum reliability
- * - App Store links for Android (Play Store) and iOS (App Store)
- * - Gmail app opens with pre-filled subject and body
+ * Goals (behavior-first, no UI):
+ * - Social media:
+ *   - Mobile: prefer native app opening without showing errors; fall back to web gracefully
+ *   - Desktop: open web in a new tab (noopener/noreferrer)
+ *   - In-app browsers: avoid fragile deep-link tricks; use web navigation
+ * - Email:
+ *   - Mobile (including installed PWA): open the default mail app via properly encoded mailto:
+ *   - Desktop: open mail client (mailto:) or existing web compose URL in a new tab
+ *
+ * Integration:
+ * - Social links: <a class="social-link" data-platform="instagram|facebook|linkedin|twitter" href="https://...">
+ * - Email link:  <a class="email-link"  data-platform="email" data-email="name@domain.com" data-name="Full Name" href="https://mail.google.com/...">
+ *
+ * Important:
+ * - This file intentionally avoids modals/toasts/alerts and does not alter layout/styling.
  */
 
 (() => {
-  /**
-   * Detect if device is mobile/tablet (touch device)
-   * MOBILE-FIRST: Optimized for reliable detection on Android and iOS
-   */
+  const UA = navigator.userAgent || '';
+
+  /** Basic environment detection (progressive enhancement). */
+  const isIOS = () => /iPad|iPhone|iPod/i.test(UA) && !window.MSStream;
+  const isAndroid = () => /Android/i.test(UA);
+
   const isMobile = () => {
-    const ua = navigator.userAgent || '';
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    
-    if (isMobileUA) {
-      return true;
-    }
-    
-    const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
+    // UA + pointer heuristics (helps for iPadOS / modern devices)
+    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(UA);
+    if (uaMobile) return true;
+    const coarse = window.matchMedia?.('(pointer: coarse)')?.matches;
     const noHover = window.matchMedia?.('(hover: none)')?.matches;
-    const isSmallScreen = window.innerWidth <= 768;
-    const hasTouch = isSmallScreen && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
-    
-    return Boolean(hasCoarsePointer && noHover && hasTouch);
+    return Boolean(coarse && noHover);
   };
 
-  const isDesktop = () => {
-    const ua = navigator.userAgent || '';
-    const isDesktopOS = /Windows|Macintosh|Linux|X11/i.test(ua);
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-    const isDesktopBrowser = isDesktopOS && !isMobileDevice && window.innerWidth > 768;
-    return isDesktopBrowser;
-  };
-
-  const isIOS = () => /iPad|iPhone|iPod/i.test(navigator.userAgent) && !window.MSStream;
-  
-  const isAndroid = () => {
-    const ua = navigator.userAgent || '';
-    const androidUA = /Android/i.test(ua);
-    const isDesktopBrowser = /Windows|Macintosh|Linux|X11/i.test(ua) && !/Mobile/i.test(ua);
-    return androidUA && !isDesktopBrowser;
-  };
+  const isDesktop = () => !isMobile();
 
   /**
-   * Get App Store URLs for each platform
-   * Returns Play Store (Android) or App Store (iOS) URLs
+   * In-app browser detection:
+   * - Instagram, Facebook, Messenger, WhatsApp often run webviews that restrict deep links / window.open.
+   * - We prefer web navigation in these contexts to avoid broken behavior.
    */
-  const getAppStoreUrl = (platform) => {
-    const storeUrls = {
-      instagram: {
-        android: 'https://play.google.com/store/apps/details?id=com.instagram.android',
-        ios: 'https://apps.apple.com/app/instagram/id389801252'
-      },
-      facebook: {
-        android: 'https://play.google.com/store/apps/details?id=com.facebook.katana',
-        ios: 'https://apps.apple.com/app/facebook/id284882215'
-      },
-      linkedin: {
-        android: 'https://play.google.com/store/apps/details?id=com.linkedin.android',
-        ios: 'https://apps.apple.com/app/linkedin/id288429040'
-      },
-      twitter: {
-        android: 'https://play.google.com/store/apps/details?id=com.twitter.android',
-        ios: 'https://apps.apple.com/app/twitter/id333903271'
-      }
-    };
-
-    const platformUrls = storeUrls[platform];
-    if (!platformUrls) return null;
-
-    if (isAndroid()) {
-      return platformUrls.android;
-    } else if (isIOS()) {
-      return platformUrls.ios;
-    } else {
-      // Desktop: Return Android Play Store by default
-      return platformUrls.android;
-    }
+  const isInAppBrowser = () => {
+    return /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|WhatsApp|MicroMessenger|wv/i.test(UA);
   };
 
-  /**
-   * Extract username from social media URL
-   */
-  const getUsernameFromUrl = (url) => {
+  /** Open a URL in a new tab with safe security flags (desktop behavior). */
+  const openNewTabSafe = (url) => {
     try {
-      const u = new URL(url);
-      const parts = u.pathname.split('/').filter(Boolean);
-      return parts[0] || '';
+      const w = window.open(url, '_blank', 'noopener,noreferrer');
+      // If blocked, fall back to same-tab navigation (still safe).
+      if (!w) window.location.href = url;
     } catch {
-      return '';
+      window.location.href = url;
     }
   };
 
-  /**
-   * Build iOS deep link URL
-   */
-  const buildIOSDeepLink = (platform, webUrl, link) => {
-    const username = getUsernameFromUrl(webUrl);
+  /** Same-tab navigation helper (mobile + in-app browser safe default). */
+  const navigateSameTab = (url) => {
+    window.location.href = url;
+  };
 
-    switch (platform) {
-      case 'instagram':
-        if (username) {
-          return `instagram://user?username=${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'twitter':
-        if (username) {
-          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'linkedin':
-        if (username) {
-          return `linkedin://in/${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'facebook':
-        if (username) {
-          return `fb://profile/${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'email':
-        const emailIOS = link?.getAttribute?.('data-email') || '';
-        const nameIOS = link?.getAttribute?.('data-name') || '';
-        if (!emailIOS) return null;
-        
-        const subjectIOS = 'Contact from Digital Business Card';
-        const bodyIOS = `Hello ${nameIOS || 'there'},\n\n`;
-        
-        return `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
-      default:
-        return null;
-    }
+  /** Extract platform from link attribute (preferred) or from URL as fallback. */
+  const getPlatform = (link) => {
+    const p = link?.getAttribute?.('data-platform') || '';
+    if (p) return p;
+    const href = link?.getAttribute?.('href') || '';
+    const h = href.toLowerCase();
+    if (h.includes('instagram.com')) return 'instagram';
+    if (h.includes('facebook.com')) return 'facebook';
+    if (h.includes('linkedin.com')) return 'linkedin';
+    if (h.includes('twitter.com') || h.includes('x.com')) return 'twitter';
+    if (h.includes('mailto:') || h.includes('mail.google.com')) return 'email';
+    return '';
   };
 
   /**
-   * Build Android deep link URL
+   * Android intent URL builder for HTTPS links.
+   * This is the most reliable way (on Android Chrome) to:
+   * - Open native app when installed (via package)
+   * - Fall back to web URL when not installed (browser_fallback_url)
+   *
+   * We only use this when NOT in an in-app browser to prevent webview breakage.
    */
-  const buildAndroidDeepLink = (platform, webUrl, link) => {
-    const username = getUsernameFromUrl(webUrl);
-    
-    switch (platform) {
-      case 'instagram':
-        if (username) {
-          return `instagram://user?username=${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'twitter':
-        if (username) {
-          return `twitter://user?screen_name=${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'linkedin':
-        if (username) {
-          return `linkedin://in/${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'facebook':
-        if (username) {
-          return `fb://profile/${encodeURIComponent(username)}`;
-        }
-        return null;
-      case 'email':
-        const emailAndroid = link?.getAttribute?.('data-email') || '';
-        const nameAndroid = link?.getAttribute?.('data-name') || '';
-        if (!emailAndroid) return null;
-        
-        const subjectAndroid = 'Contact from Digital Business Card';
-        const bodyAndroid = `Hello ${nameAndroid || 'there'},\n\n`;
-        
-        return `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
-      default:
-        return null;
-    }
+  const ANDROID_PACKAGES = {
+    instagram: 'com.instagram.android',
+    facebook: 'com.facebook.katana',
+    linkedin: 'com.linkedin.android',
+    twitter: 'com.twitter.android'
   };
 
-  /**
-   * Get platform display name
-   */
-  const getPlatformDisplayName = (platform) => {
-    const names = {
-      instagram: 'Instagram',
-      facebook: 'Facebook',
-      linkedin: 'LinkedIn',
-      twitter: 'X (Twitter)',
-      email: 'Gmail'
-    };
-    return names[platform] || platform;
-  };
+  const buildAndroidIntentForWebUrl = (webUrl, platform) => {
+    const pkg = ANDROID_PACKAGES[platform];
+    if (!pkg) return null;
 
-  /**
-   * Show notification toast message
-   * MOBILE-FIRST: Displays a temporary notification to the user
-   */
-  const showNotification = (message, duration = 4000) => {
-    const toast = document.getElementById('notification-toast');
-    const toastMessage = document.getElementById('notification-toast-message');
-    
-    if (!toast || !toastMessage) {
-      console.warn('Notification toast elements not found');
-      return;
-    }
-
-    toastMessage.textContent = message;
-    toast.classList.add('show');
-
-    // Announce to screen readers
-    const a11yStatus = document.getElementById('a11y-status');
-    if (a11yStatus) {
-      a11yStatus.textContent = '';
-      setTimeout(() => {
-        a11yStatus.textContent = message;
-      }, 10);
-    }
-
-    // Auto-hide after duration
-    setTimeout(() => {
-      toast.classList.remove('show');
-    }, duration);
-  };
-
-  /**
-   * Show app download modal for social media
-   * MOBILE-FIRST: Always shows modal with 2 options (Browser, App)
-   * If app not installed, shows notification instead of redirecting to store
-   */
-  const showSocialMediaModal = (platform, webUrl, appUrl) => {
-    const modal = document.getElementById('app-download-modal');
-    if (!modal) {
-      console.warn('App download modal not found in DOM');
-      // Fallback: Open browser directly
-      window.location.href = webUrl;
-      return;
-    }
-
-    const modalTitle = document.getElementById('app-download-modal-title');
-    const modalMessage = document.getElementById('app-download-message');
-    const storeBtn = document.getElementById('app-download-store-btn');
-    const storeBtnText = document.getElementById('app-download-store-text');
-    const storeBtnIcon = document.getElementById('app-download-store-icon');
-    const webBtn = document.getElementById('app-download-web-btn');
-    const closeBtn = modal.querySelector('.app-download-modal-close');
-
-    if (!modalTitle || !modalMessage || !storeBtn || !webBtn) {
-      console.warn('Modal elements not found');
-      window.location.href = webUrl;
-      return;
-    }
-
-    // Update modal content
-    const platformName = getPlatformDisplayName(platform);
-    modalTitle.textContent = `Open ${platformName}`;
-    modalMessage.textContent = `Choose how you'd like to open ${platformName}:`;
-
-    // Button 1: Open in Browser
-    webBtn.href = webUrl;
-    webBtn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      closeModal();
-      window.open(webUrl, '_blank', 'noopener,noreferrer');
-    };
-
-    // Button 2: Open in App (shows notification if app not installed)
-    const storeUrl = getAppStoreUrl(platform);
-    if (appUrl) {
-      // Try to open app, show notification if app not installed
-      storeBtnText.textContent = 'Open in App';
-      if (storeBtnIcon) {
-        storeBtnIcon.className = 'fa-solid fa-mobile-screen-button';
-      }
-      storeBtn.href = appUrl;
-      storeBtn.style.display = 'inline-flex'; // Ensure visible
-      storeBtn.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closeModal();
-        
-        // Track initial state
-        const initialHiddenState = document.hidden;
-        const startTime = Date.now();
-        
-        // Attempt to open app
-        try {
-          window.location.href = appUrl;
-          
-          // Check if app opened within 1 second
-          setTimeout(() => {
-            const isHidden = document.hidden;
-            const wasHiddenAfterStart = isHidden && !initialHiddenState;
-            const timeElapsed = Date.now() - startTime;
-            const appOpened = wasHiddenAfterStart && timeElapsed < 1000;
-            
-            // If app didn't open, show notification
-            if (!appOpened && document.visibilityState === 'visible') {
-              const platformName = getPlatformDisplayName(platform);
-              const storeName = isAndroid() ? 'Play Store' : isIOS() ? 'App Store' : 'app store';
-              showNotification(`To open ${platformName} through the mobile app, please install it from the ${storeName}.`, 5000);
-            }
-          }, 1000);
-        } catch (err) {
-          // If error, show notification
-          const platformName = getPlatformDisplayName(platform);
-          const storeName = isAndroid() ? 'Play Store' : isIOS() ? 'App Store' : 'app store';
-          showNotification(`To open ${platformName} through the mobile app, please install it from the ${storeName}.`, 5000);
-        }
-      };
-    } else {
-      // No app URL available, hide store button
-      storeBtn.style.display = 'none';
-    }
-
-    // Close button handler
-    const closeModal = () => {
-      modal.classList.remove('active');
-      modal.setAttribute('aria-hidden', 'true');
-      document.body.style.overflow = '';
-    };
-
-    if (closeBtn) {
-      closeBtn.onclick = closeModal;
-    }
-
-    // Close on overlay click
-    const overlay = modal.querySelector('.app-download-modal-overlay');
-    if (overlay) {
-      overlay.onclick = closeModal;
-    }
-
-    // Close on Escape key
-    const handleEscape = (e) => {
-      if (e.key === 'Escape' && modal.classList.contains('active')) {
-        closeModal();
-        document.removeEventListener('keydown', handleEscape);
-      }
-    };
-    document.addEventListener('keydown', handleEscape);
-
-    // Show modal
-    modal.classList.add('active');
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.style.overflow = 'hidden';
-
-    // Focus management for accessibility
-    storeBtn.focus();
-  };
-
-  /**
-   * Attempt to open URL using multiple methods (for PWA compatibility)
-   * MOBILE-FIRST: Uses multiple techniques to ensure app opens in PWA context
-   * Critical for PWAs where window.location.href may not work reliably
-   */
-  const attemptOpenUrl = (url) => {
-    // Method 1: Try creating and clicking a link (most reliable in PWAs)
     try {
-      const link = document.createElement('a');
-      link.href = url;
-      link.style.display = 'none';
-      link.target = '_self';
-      document.body.appendChild(link);
-      
-      // Use both click() and programmatic navigation for maximum compatibility
-      link.click();
-      
-      // Also try direct navigation as backup
-      setTimeout(() => {
-        try {
-          window.location.href = url;
-        } catch (e) {
-          // Ignore if already handled
-        }
-      }, 50);
-      
-      // Cleanup after a short delay
-      setTimeout(() => {
-        try {
-          if (link.parentNode) {
-            document.body.removeChild(link);
-          }
-        } catch (cleanupErr) {
-          // Ignore cleanup errors
-        }
-      }, 200);
-    } catch (linkErr) {
-      // Method 2: Try window.location.href directly
-      try {
-        window.location.href = url;
-      } catch (e) {
-        // Method 3: Try window.open as last resort
-        try {
-          window.open(url, '_self');
-        } catch (openErr) {
-          console.warn('Failed to open URL:', openErr);
-        }
-      }
+      const u = new URL(webUrl);
+      const scheme = (u.protocol || 'https:').replace(':', '') || 'https';
+      const noProto = `${u.host}${u.pathname}${u.search}${u.hash}`;
+      const fallback = encodeURIComponent(webUrl);
+      return `intent://${noProto}#Intent;scheme=${scheme};package=${pkg};S.browser_fallback_url=${fallback};end`;
+    } catch {
+      return null;
     }
   };
 
   /**
-   * Open Gmail - Smart detection based on device
-   * MOBILE-FIRST: 
-   * - Smartphone: Opens Gmail mobile app directly (multiple methods for PWA compatibility)
-   * - Desktop: Opens Gmail web browser
+   * Social behavior:
+   * - Desktop: new tab to web.
+   * - Mobile in-app browser: same-tab to web (avoid deep link tricks).
+   * - Mobile normal browser:
+   *   - Android: intent:// (native if installed, web if not).
+   *   - iOS: universal links via https (opens app if installed, otherwise web).
    */
-  const openGmailApp = (link) => {
+  const handleSocialAction = (link) => {
+    const webUrl = link.getAttribute('href');
+    const platform = getPlatform(link);
+    if (!webUrl) return;
+
+    // Desktop: always web in a new tab.
+    if (isDesktop()) {
+      openNewTabSafe(webUrl);
+      return;
+    }
+
+    // In-app browsers: avoid intent/custom scheme; go web directly.
+    if (isInAppBrowser()) {
+      navigateSameTab(webUrl);
+      return;
+    }
+
+    // Android: try intent (native-first with built-in web fallback).
+    if (isAndroid()) {
+      const intentUrl = buildAndroidIntentForWebUrl(webUrl, platform);
+      if (intentUrl) {
+        navigateSameTab(intentUrl);
+        return;
+      }
+    }
+
+    // iOS + everything else: rely on universal/app links (webUrl).
+    navigateSameTab(webUrl);
+  };
+
+  /** Build a properly encoded mailto URL (default mail app, not Gmail-specific). */
+  const buildMailtoUrl = ({ to, subject, body }) => {
+    const safeTo = (to || '').trim();
+    const params = new URLSearchParams();
+    if (subject) params.set('subject', subject);
+    if (body) params.set('body', body);
+    const qs = params.toString();
+    return `mailto:${safeTo}${qs ? `?${qs}` : ''}`;
+  };
+
+  /**
+   * Email behavior:
+   * - Mobile (including installed PWA): mailto: (default mail app) with subject/body.
+   * - Desktop:
+   *   - If link href is http(s) (e.g., Gmail web compose), open in a new tab.
+   *   - Otherwise, use mailto:.
+   *
+   * Notes:
+   * - We do NOT force Gmail app. We intentionally avoid googlegmail:// schemes.
+   */
+  const handleEmailAction = (link) => {
     const email = link?.getAttribute?.('data-email') || '';
     const name = link?.getAttribute?.('data-name') || '';
-    
-    if (!email) {
-      console.warn('Email address not found');
-      return;
-    }
+    const href = link?.getAttribute?.('href') || '';
 
     const subject = 'Contact from Digital Business Card';
     const body = `Hello ${name || 'there'},\n\n`;
-    
-    // DESKTOP: Open in browser (Gmail web)
-    if (isDesktop()) {
-      const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.open(gmailWebUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    
-    // MOBILE: Open Gmail mobile app directly (PWA-compatible)
-    if (isMobile()) {
-      // Build Gmail app URL - same scheme works for both Android and iOS
-      const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      
-      // CRITICAL FOR PWA: Use multiple attempts to ensure app opens
-      // PWAs require more aggressive methods to open native apps
-      
-      // Attempt 1: Immediate attempt (primary method)
-      attemptOpenUrl(gmailAppUrl);
-      
-      // Attempt 2: Retry after 100ms (handles PWA delays)
-      setTimeout(() => {
-        if (document.visibilityState === 'visible' && !document.hidden) {
-          attemptOpenUrl(gmailAppUrl);
-        }
-      }, 100);
-      
-      // Attempt 3: Final retry after 300ms (for slow PWA contexts)
-      setTimeout(() => {
-        if (document.visibilityState === 'visible' && !document.hidden) {
-          attemptOpenUrl(gmailAppUrl);
-        }
-      }, 300);
-      
-      // Fallback: mailto: protocol after 2 seconds if app didn't open
-      setTimeout(() => {
-        // Only fallback if page is still visible (app didn't open)
-        if (document.visibilityState === 'visible' && !document.hidden) {
-          const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          attemptOpenUrl(mailtoUrl);
-        }
-      }, 2000);
-      
-      return;
-    }
-    
-    // Fallback for other devices: Try Gmail app, then mailto:
-    const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    attemptOpenUrl(gmailAppUrl);
-    
-    setTimeout(() => {
-      if (document.visibilityState === 'visible') {
-        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        attemptOpenUrl(mailtoUrl);
+    const mailtoUrl = buildMailtoUrl({ to: email, subject, body });
+
+    if (!email) {
+      // Graceful fallback: if data-email missing, use existing href.
+      if (href) {
+        if (isDesktop()) openNewTabSafe(href);
+        else navigateSameTab(href);
       }
-    }, 1500);
+      return;
+    }
+
+    if (isDesktop()) {
+      // If the existing href is a web compose page (gmail/webmail), respect it.
+      if (/^https?:\/\//i.test(href)) {
+        openNewTabSafe(href);
+        return;
+      }
+      // Otherwise, use mailto (desktop mail client).
+      navigateSameTab(mailtoUrl);
+      return;
+    }
+
+    // Mobile: default mail app (PWA-safe).
+    // In in-app browsers, mailto may be blocked; we still attempt mailto first (no UI, no alerts).
+    navigateSameTab(mailtoUrl);
   };
 
   /**
-   * Handle click events on social links and email links
-   * MOBILE-FIRST: 
-   * - Social Media → Show modal with Browser/App options
-   * - Email → Open Gmail app directly
+   * Unified click handler with clear separation:
+   * - Social actions: .social-link
+   * - Email action:  .email-link (data-platform="email")
+   *
+   * Avoid breaking the copy icon inside the email row by ignoring clicks on `.copy-icon`.
    */
-  const onClick = (e) => {
+  const onDocumentClick = (e) => {
+    // Don't hijack copy-to-clipboard clicks.
+    if (e.target?.closest?.('.copy-icon')) return;
+
     const link = e.target?.closest?.('.social-link, .email-link');
     if (!link) return;
-    
-    const webUrl = link.getAttribute('href');
-    const platform = link.getAttribute('data-platform');
-    
-    if (!webUrl || !platform) {
-      console.warn('Social link missing required attributes:', { webUrl, platform });
-      return;
-    }
 
-    // Prevent default navigation - we'll handle it ourselves
+    const platform = getPlatform(link);
+    if (!platform) return;
+
+    // Our actions replace default navigation.
     e.preventDefault();
     e.stopPropagation();
-    
-    // EMAIL: Always open Gmail app directly (no modal)
-    if (platform === 'email') {
-      openGmailApp(link);
+
+    if (platform === 'email' || link.classList.contains('email-link')) {
+      handleEmailAction(link);
       return;
     }
 
-    // SOCIAL MEDIA: Always show modal with Browser/App options
-    let appUrl = null;
-    
-    if (isAndroid()) {
-      appUrl = buildAndroidDeepLink(platform, webUrl, link);
-    } else if (isIOS()) {
-      appUrl = buildIOSDeepLink(platform, webUrl, link);
-    } else {
-      // Desktop/Other: Try direct app schemes
-      const username = getUsernameFromUrl(webUrl);
-      if (username) {
-        switch (platform) {
-          case 'instagram':
-            appUrl = `instagram://user?username=${encodeURIComponent(username)}`;
-            break;
-          case 'twitter':
-            appUrl = `twitter://user?screen_name=${encodeURIComponent(username)}`;
-            break;
-          case 'linkedin':
-            appUrl = `linkedin://in/${encodeURIComponent(username)}`;
-            break;
-          case 'facebook':
-            appUrl = `fb://profile/${encodeURIComponent(username)}`;
-            break;
-        }
-      }
-    }
-    
-    // Show modal with Browser/App options
-    showSocialMediaModal(platform, webUrl, appUrl);
+    handleSocialAction(link);
   };
 
-  // Attach click handler
-  document.addEventListener('click', onClick, true);
+  // Attach once (capture=true ensures we run even if nested elements exist).
+  document.addEventListener('click', onDocumentClick, true);
+
+  // Optional: expose functions for manual attachment/testing without changing UI.
+  window.DigitalCardActions = {
+    isMobile,
+    isDesktop,
+    isIOS,
+    isAndroid,
+    isInAppBrowser,
+    buildAndroidIntentForWebUrl,
+    buildMailtoUrl,
+    handleSocialAction,
+    handleEmailAction
+  };
 })();
+
+
