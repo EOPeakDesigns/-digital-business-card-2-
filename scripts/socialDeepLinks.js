@@ -16,6 +16,17 @@
 
 (() => {
   /**
+   * Modal state management - prevents double-opening
+   * MOBILE-FIRST: Tracks modal state to ensure single instance
+   */
+  let modalState = {
+    isOpen: false,
+    isClosed: false,
+    safetyNetTimer: null,
+    currentPlatform: null
+  };
+
+  /**
    * Detect if device is mobile/tablet (touch device)
    * MOBILE-FIRST: Optimized for reliable detection on Android and iOS
    * Includes tablets as they should use mobile app behavior
@@ -125,9 +136,22 @@
   /**
    * Show app download modal with store and web options
    * MOBILE-FIRST: Ensures modal always displays correctly on mobile devices
+   * Prevents double-opening with state management
    */
   const showAppDownloadModal = (platform, webUrl) => {
     const modal = document.getElementById('app-download-modal');
+    
+    // CRITICAL: Prevent double-opening - check if modal is already open
+    if (modal && modal.classList.contains('active')) {
+      console.log('Modal already open, ignoring duplicate call');
+      return;
+    }
+    
+    // CRITICAL: If modal was closed by user, don't reopen it
+    if (modalState.isClosed) {
+      console.log('Modal was closed by user, not reopening');
+      return;
+    }
     
     // CRITICAL: If modal doesn't exist, fallback to web navigation
     if (!modal) {
@@ -148,6 +172,17 @@
     if (!platform) {
       console.warn('Invalid platform provided to modal:', platform);
       return;
+    }
+
+    // Mark modal as open and store platform
+    modalState.isOpen = true;
+    modalState.isClosed = false;
+    modalState.currentPlatform = platform;
+    
+    // Clear any pending safety net timer
+    if (modalState.safetyNetTimer) {
+      clearTimeout(modalState.safetyNetTimer);
+      modalState.safetyNetTimer = null;
     }
 
     const modalClose = document.querySelector('.app-download-modal-close');
@@ -220,9 +255,25 @@
     
     // Close modal function
     const closeModal = () => {
+      // Mark modal as closed to prevent reopening
+      modalState.isOpen = false;
+      modalState.isClosed = true;
+      modalState.currentPlatform = null;
+      
+      // Clear any pending safety net timer
+      if (modalState.safetyNetTimer) {
+        clearTimeout(modalState.safetyNetTimer);
+        modalState.safetyNetTimer = null;
+      }
+      
       modal.classList.remove('active');
       modal.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
+      
+      // Reset closed flag after a short delay (allows new clicks to work)
+      setTimeout(() => {
+        modalState.isClosed = false;
+      }, 500);
     };
     
     // Set up close handlers (remove old ones first to prevent duplicates)
@@ -409,6 +460,7 @@
     let appOpened = false;
     let fallbackTimer = null;
     let visibilityTimer = null;
+    let safetyNetTimer = null;
     
     // Cleanup function
     const cleanup = () => {
@@ -419,6 +471,14 @@
       if (visibilityTimer) {
         clearTimeout(visibilityTimer);
         visibilityTimer = null;
+      }
+      if (safetyNetTimer) {
+        clearTimeout(safetyNetTimer);
+        safetyNetTimer = null;
+        // Also clear from global state
+        if (modalState.safetyNetTimer === safetyNetTimer) {
+          modalState.safetyNetTimer = null;
+        }
       }
       document.removeEventListener('visibilitychange', onVisibilityChange, true);
       window.removeEventListener('pagehide', onPageHide, true);
@@ -577,18 +637,31 @@
     
     // SAFETY NET: Backup timeout for mobile devices (ensures modal always shows)
     // This is critical for Android where detection might be less reliable
+    // MOBILE-FIRST: Only set safety net if modal hasn't been shown or closed
     if (isMobile() && detectedPlatform) {
       const safetyNetDelay = fallbackDelay + 800; // 0.8 seconds after main timeout
-      setTimeout(() => {
+      safetyNetTimer = setTimeout(() => {
         // Double-check: if modal is not visible and page is still visible, show modal
         const modal = document.getElementById('app-download-modal');
         const isModalVisible = modal && modal.classList.contains('active');
         
-        if (!isModalVisible && !document.hidden && !appOpened) {
+        // CRITICAL: Only show if:
+        // 1. Modal is not currently visible
+        // 2. Modal was not closed by user
+        // 3. App didn't open
+        // 4. Page is still visible
+        if (!isModalVisible && !modalState.isClosed && !document.hidden && !appOpened) {
           // Modal didn't show and app didn't open - show it now (safety net)
           showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
         }
+        
+        // Clear timer reference
+        safetyNetTimer = null;
+        modalState.safetyNetTimer = null;
       }, safetyNetDelay);
+      
+      // Store timer reference in global state for cleanup
+      modalState.safetyNetTimer = safetyNetTimer;
     }
   };
 
@@ -646,8 +719,12 @@
       return;
     }
 
-    // MOBILE-FIRST: On mobile, always try app first, then show modal if not installed
-    // On desktop, try app first, then redirect to web
+    // MOBILE-FIRST: Reset modal state for new click (allows new modal to show)
+    // This ensures that if user clicks a different social button, it works
+    if (modalState.isClosed) {
+      modalState.isClosed = false;
+      modalState.isOpen = false;
+    }
     
     // Prevent default navigation - we'll handle it ourselves
     e.preventDefault();
