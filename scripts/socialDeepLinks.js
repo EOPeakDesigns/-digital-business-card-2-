@@ -355,9 +355,60 @@
   };
 
   /**
+   * Attempt to open URL using multiple methods (for PWA compatibility)
+   * MOBILE-FIRST: Uses multiple techniques to ensure app opens in PWA context
+   * Critical for PWAs where window.location.href may not work reliably
+   */
+  const attemptOpenUrl = (url) => {
+    // Method 1: Try creating and clicking a link (most reliable in PWAs)
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.style.display = 'none';
+      link.target = '_self';
+      document.body.appendChild(link);
+      
+      // Use both click() and programmatic navigation for maximum compatibility
+      link.click();
+      
+      // Also try direct navigation as backup
+      setTimeout(() => {
+        try {
+          window.location.href = url;
+        } catch (e) {
+          // Ignore if already handled
+        }
+      }, 50);
+      
+      // Cleanup after a short delay
+      setTimeout(() => {
+        try {
+          if (link.parentNode) {
+            document.body.removeChild(link);
+          }
+        } catch (cleanupErr) {
+          // Ignore cleanup errors
+        }
+      }, 200);
+    } catch (linkErr) {
+      // Method 2: Try window.location.href directly
+      try {
+        window.location.href = url;
+      } catch (e) {
+        // Method 3: Try window.open as last resort
+        try {
+          window.open(url, '_self');
+        } catch (openErr) {
+          console.warn('Failed to open URL:', openErr);
+        }
+      }
+    }
+  };
+
+  /**
    * Open Gmail - Smart detection based on device
    * MOBILE-FIRST: 
-   * - Smartphone: Opens Gmail mobile app directly
+   * - Smartphone: Opens Gmail mobile app directly (multiple methods for PWA compatibility)
    * - Desktop: Opens Gmail web browser
    */
   const openGmailApp = (link) => {
@@ -379,52 +430,53 @@
       return;
     }
     
-    // MOBILE: Open Gmail mobile app directly
+    // MOBILE: Open Gmail mobile app directly (PWA-compatible)
     if (isMobile()) {
+      // Build Gmail app URL - same scheme works for both Android and iOS
       const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       
-      try {
-        // Track initial state
-        const initialHiddenState = document.hidden;
-        const startTime = Date.now();
-        
-        window.location.href = gmailAppUrl;
-        
-        // Check if Gmail app opened within 1 second
-        setTimeout(() => {
-          const isHidden = document.hidden;
-          const wasHiddenAfterStart = isHidden && !initialHiddenState;
-          const timeElapsed = Date.now() - startTime;
-          const appOpened = wasHiddenAfterStart && timeElapsed < 1000;
-          
-          // If Gmail app didn't open, fallback to mailto:
-          if (!appOpened && document.visibilityState === 'visible') {
-            const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailtoUrl;
-          }
-        }, 1000);
-      } catch (err) {
-        // If error, try mailto:
-        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.location.href = mailtoUrl;
-      }
+      // CRITICAL FOR PWA: Use multiple attempts to ensure app opens
+      // PWAs require more aggressive methods to open native apps
+      
+      // Attempt 1: Immediate attempt (primary method)
+      attemptOpenUrl(gmailAppUrl);
+      
+      // Attempt 2: Retry after 100ms (handles PWA delays)
+      setTimeout(() => {
+        if (document.visibilityState === 'visible' && !document.hidden) {
+          attemptOpenUrl(gmailAppUrl);
+        }
+      }, 100);
+      
+      // Attempt 3: Final retry after 300ms (for slow PWA contexts)
+      setTimeout(() => {
+        if (document.visibilityState === 'visible' && !document.hidden) {
+          attemptOpenUrl(gmailAppUrl);
+        }
+      }, 300);
+      
+      // Fallback: mailto: protocol after 2 seconds if app didn't open
+      setTimeout(() => {
+        // Only fallback if page is still visible (app didn't open)
+        if (document.visibilityState === 'visible' && !document.hidden) {
+          const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          attemptOpenUrl(mailtoUrl);
+        }
+      }, 2000);
+      
       return;
     }
     
     // Fallback for other devices: Try Gmail app, then mailto:
     const gmailAppUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    try {
-      window.location.href = gmailAppUrl;
-      setTimeout(() => {
-        if (document.visibilityState === 'visible') {
-          const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          window.location.href = mailtoUrl;
-        }
-      }, 1000);
-    } catch (err) {
-      const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.location.href = mailtoUrl;
-    }
+    attemptOpenUrl(gmailAppUrl);
+    
+    setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        attemptOpenUrl(mailtoUrl);
+      }
+    }, 1500);
   };
 
   /**
