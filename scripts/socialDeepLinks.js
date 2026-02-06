@@ -189,8 +189,17 @@
 
   /**
    * Open app with smart web fallback
-   * MOBILE-FIRST: Detects app within 1 second, opens web immediately if not installed
-   * NO MODALS - Direct action for seamless UX
+   * MOBILE-FIRST: Ultra-reliable app detection within 1 second
+   * Priority: Mobile App First → Browser Fallback (NO modals)
+   * 
+   * Supported Platforms:
+   * - Instagram, Facebook, LinkedIn, X (Twitter), Gmail
+   * 
+   * Strategy:
+   * 1. Attempt to open mobile app
+   * 2. Detect if app opened (within 1 second)
+   * 3. If app opened → Done (app is open)
+   * 4. If app NOT opened → Open browser immediately
    */
   const openWithFallback = (appUrl, webUrl, platform = null) => {
     const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
@@ -208,17 +217,19 @@
     
     const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
     
-    // MOBILE-FIRST: Track initial state BEFORE attempting to open app
+    // MOBILE-FIRST: Enhanced detection system
+    // Track initial state BEFORE attempting to open app (critical for accurate detection)
     const initialHiddenState = document.hidden;
     const startTime = Date.now();
     
-    // Track app opening state
+    // Track app opening state with multiple indicators
     let appOpened = false;
     let detectionConfirmed = false;
     let fallbackTimer = null;
     let visibilityTimer = null;
+    let detectionInterval = null;
     
-    // Cleanup function
+    // Cleanup function - removes all listeners and timers
     const cleanup = () => {
       if (fallbackTimer) {
         clearTimeout(fallbackTimer);
@@ -228,21 +239,28 @@
         clearTimeout(visibilityTimer);
         visibilityTimer = null;
       }
+      if (detectionInterval) {
+        clearInterval(detectionInterval);
+        detectionInterval = null;
+      }
       document.removeEventListener('visibilitychange', onVisibilityChange, true);
       window.removeEventListener('pagehide', onPageHide, true);
       window.removeEventListener('blur', onBlur, true);
     };
     
-    // Detection function - checks if app opened
+    // Enhanced detection function - checks multiple indicators
     const checkIfAppOpened = () => {
       if (detectionConfirmed) return true;
       
       const isHidden = document.hidden;
       const wasHiddenAfterStart = isHidden && !initialHiddenState;
       const timeElapsed = Date.now() - startTime;
-      const quickHide = wasHiddenAfterStart && timeElapsed < 1000; // Within 1 second (as requested)
       
-      if (wasHiddenAfterStart && quickHide) {
+      // CRITICAL: App opened if page became hidden AFTER we started AND within 1 second
+      // This ensures we only detect apps that actually opened, not pre-existing hidden state
+      const quickHide = wasHiddenAfterStart && timeElapsed < 1000; // Within 1 second
+      
+      if (quickHide) {
         appOpened = true;
         detectionConfirmed = true;
         cleanup();
@@ -252,14 +270,13 @@
       return false;
     };
     
-    // Detection handlers
+    // Detection handlers - multiple methods for reliability
     const onVisibilityChange = () => {
-      if (checkIfAppOpened()) {
-        return;
-      }
+      checkIfAppOpened();
     };
     
     const onPageHide = () => {
+      // pagehide is definitive - app definitely opened
       if (!detectionConfirmed) {
         appOpened = true;
         detectionConfirmed = true;
@@ -268,30 +285,50 @@
     };
     
     const onBlur = () => {
+      // Validate blur with visibility check (blur can fire for other reasons)
       visibilityTimer = setTimeout(() => {
-        if (!detectionConfirmed && checkIfAppOpened()) {
-          return;
+        if (!detectionConfirmed) {
+          checkIfAppOpened();
         }
         visibilityTimer = null;
-      }, 200);
+      }, 150); // Short delay for validation
     };
     
     // Set up detection listeners BEFORE attempting to open app
     document.addEventListener('visibilitychange', onVisibilityChange, true);
     window.addEventListener('pagehide', onPageHide, true);
     window.addEventListener('blur', onBlur, true);
+    
+    // MOBILE-FIRST: Continuous detection check (every 50ms for ultra-fast detection)
+    // This catches app opening even if events are delayed
+    detectionInterval = setInterval(() => {
+      if (checkIfAppOpened()) {
+        return; // App opened, stop checking
+      }
+      
+      // Stop checking after 1 second (main timeout will handle fallback)
+      const timeElapsed = Date.now() - startTime;
+      if (timeElapsed >= 1000) {
+        clearInterval(detectionInterval);
+        detectionInterval = null;
+      }
+    }, 50); // Check every 50ms for fastest detection
 
     /**
      * Attempt to open app URL
-     * Uses window.location for reliable event triggering
+     * MOBILE-FIRST: Uses window.location for reliable event triggering
+     * This method triggers proper visibility/blur events when app opens
      */
     const attemptOpenApp = (url) => {
+      if (!url) return;
+      
       if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
-        // App scheme - use window.location for reliable detection
+        // App scheme (instagram://, fb://, etc.) - use window.location
+        // This triggers proper events for reliable detection
         try {
           window.location.href = url;
         } catch (e) {
-          // Fallback: Try link click
+          // Fallback: Try link click if window.location fails
           try {
             const link = document.createElement('a');
             link.href = url;
@@ -334,55 +371,60 @@
       }
     };
 
-    // Attempt to open primary URL (app)
+    // MOBILE-FIRST: Attempt to open primary URL (mobile app)
+    // This is the first priority - try to open the native app
     attemptOpenApp(primaryUrl);
 
-    // MOBILE-FIRST: 1 second timeout (ultra-fast detection)
-    // - Mobile: 1000ms (1 second max as requested)
-    // - Desktop: 500ms (apps won't open, fail fast)
+    // MOBILE-FIRST: 1 second timeout (ultra-fast detection as requested)
+    // - Mobile: 1000ms (1 second max - detects app existence)
+    // - Desktop: 500ms (apps won't open, fail fast to web)
     const fallbackDelay = isMobile() ? 1000 : 500;
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
       
-      // Final check if app actually opened
+      // CRITICAL: Final check if app actually opened
+      // Use multiple indicators for maximum reliability
       const timeElapsed = Date.now() - startTime;
       const isCurrentlyHidden = document.hidden && !initialHiddenState;
       const wasHiddenQuickly = isCurrentlyHidden && timeElapsed < 1000; // Within 1 second
       
-      // App opened if detection confirmed or page became hidden quickly
+      // App opened if ANY of these are true:
+      // 1. Detection confirmed flag (strongest indicator)
+      // 2. App opened flag set by event handlers
+      // 3. Page became hidden quickly after we started
       const appActuallyOpened = detectionConfirmed || appOpened || wasHiddenQuickly;
       
       if (!appActuallyOpened) {
-        // App didn't open - open web immediately (NO modal)
+        // MOBILE-FIRST: App didn't open - open web browser immediately (NO modal)
+        // This provides seamless fallback - user gets content immediately
         
-        // For email: try mailto: fallback first
+        // For email: try mailto: fallback first (opens default email app)
         if (fallbackUrl && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
-          // Try mailto: fallback (opens default email app)
+          // Only try mailto if primary Gmail app didn't open
           if (!appOpened && !detectionConfirmed) {
             attemptOpenApp(fallbackUrl);
             
-            // Check if mailto opened within 1 second
+            // Check if mailto opened within additional 1 second
             setTimeout(() => {
               const mailtoTimeElapsed = Date.now() - startTime;
               const mailtoIsHidden = document.hidden && !initialHiddenState;
-              const mailtoOpened = mailtoIsHidden && mailtoTimeElapsed < 2000; // 2 seconds total (1s detection + 1s mailto check)
+              const mailtoOpened = mailtoIsHidden && mailtoTimeElapsed < 2000; // 2 seconds total
               
               if (!mailtoOpened && !appOpened && !detectionConfirmed) {
-                // Mailto also didn't open - open web immediately
+                // Mailto also didn't open - open web browser immediately
                 window.location.href = urlToUse || finalWebUrl;
               }
             }, 1000);
-          } else {
-            // Primary app opened, skip fallback
-            return;
           }
+          // If primary app opened, skip fallback (already handled)
         } else {
-          // For social media: open web immediately (NO modal)
+          // For social media (Instagram, Facebook, LinkedIn, X/Twitter): 
+          // Open web browser immediately if app not installed
           window.location.href = urlToUse || finalWebUrl;
         }
       }
-      // If app opened successfully, cleanup already handled
+      // If app opened successfully, cleanup already handled - no action needed
     }, fallbackDelay);
   };
 
