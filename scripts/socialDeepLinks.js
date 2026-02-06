@@ -17,29 +17,30 @@
 (() => {
   /**
    * Detect if device is mobile/tablet (touch device)
+   * MOBILE-FIRST: Optimized for reliable detection on Android and iOS
    * Includes tablets as they should use mobile app behavior
-   * More accurate detection that doesn't false-positive on desktop with DevTools
    */
   const isMobile = () => {
-    // First check: User Agent (most reliable for actual device type)
+    // Primary check: User Agent (most reliable for actual device type)
     const ua = navigator.userAgent || '';
     const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
     
-    // Second check: Media queries (more reliable than touch detection)
+    // If User Agent indicates mobile, trust it (most reliable)
+    if (isMobileUA) {
+      return true;
+    }
+    
+    // Secondary check: Media queries (for devices that might not have mobile UA)
     const hasCoarsePointer = window.matchMedia?.('(pointer: coarse)')?.matches;
     const noHover = window.matchMedia?.('(hover: none)')?.matches;
     
-    // Third check: Screen size (mobile devices typically have smaller screens)
-    // Only consider touch if screen is mobile-sized (prevents false positives from DevTools)
+    // Third check: Touch capability + screen size
     const isSmallScreen = window.innerWidth <= 768;
     const hasTouch = isSmallScreen && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
     
-    // Return true only if multiple indicators suggest mobile
-    // This prevents false positives when DevTools emulation is active
-    return Boolean(
-      (isMobileUA && (hasCoarsePointer || noHover)) || 
-      (hasCoarsePointer && noHover && hasTouch)
-    );
+    // Return true if media queries indicate mobile (coarse pointer + no hover)
+    // This catches edge cases where UA might not be mobile but device is
+    return Boolean(hasCoarsePointer && noHover && hasTouch);
   };
 
   /**
@@ -123,21 +124,17 @@
 
   /**
    * Show app download modal with store and web options
+   * MOBILE-FIRST: Ensures modal always displays correctly on mobile devices
    */
   const showAppDownloadModal = (platform, webUrl) => {
     const modal = document.getElementById('app-download-modal');
-    const modalClose = document.querySelector('.app-download-modal-close');
-    const modalOverlay = document.querySelector('.app-download-modal-overlay');
-    const storeBtn = document.getElementById('app-download-store-btn');
-    const webBtn = document.getElementById('app-download-web-btn');
-    const messageEl = document.getElementById('app-download-message');
-    const storeTextEl = document.getElementById('app-download-store-text');
-    const iconEl = document.getElementById('app-download-icon');
     
+    // CRITICAL: If modal doesn't exist, fallback to web navigation
     if (!modal) {
-      console.warn('App download modal not found in DOM');
-      // Fallback: navigate directly to web if modal doesn't exist
-      window.location.href = webUrl;
+      console.warn('App download modal not found in DOM - redirecting to web');
+      if (webUrl && webUrl !== '#') {
+        window.location.href = webUrl;
+      }
       return;
     }
     
@@ -146,29 +143,48 @@
       console.warn('Invalid webUrl provided to modal:', webUrl);
       return;
     }
+    
+    // Ensure platform is valid
+    if (!platform) {
+      console.warn('Invalid platform provided to modal:', platform);
+      return;
+    }
+
+    const modalClose = document.querySelector('.app-download-modal-close');
+    const modalOverlay = document.querySelector('.app-download-modal-overlay');
+    const storeBtn = document.getElementById('app-download-store-btn');
+    const webBtn = document.getElementById('app-download-web-btn');
+    const messageEl = document.getElementById('app-download-message');
+    const storeTextEl = document.getElementById('app-download-store-text');
+    const iconEl = document.getElementById('app-download-icon');
 
     const appName = getAppName(platform);
     const storeUrl = getAppStoreUrl(platform);
     
-    // Update modal content
-    messageEl.textContent = `${appName} is not installed on your device. Would you like to download it?`;
+    // Update modal message
+    if (messageEl) {
+      messageEl.textContent = `${appName} is not installed on your device. Would you like to download it?`;
+    }
     
-    // Set store button
-    if (storeUrl) {
-      storeBtn.href = storeUrl;
-      storeBtn.style.display = 'inline-flex';
-      if (isAndroid()) {
-        storeTextEl.textContent = 'Download from Play Store';
-        iconEl.className = 'fa-brands fa-google-play';
-      } else if (isIOS()) {
-        storeTextEl.textContent = 'Download from App Store';
-        iconEl.className = 'fa-brands fa-app-store-ios';
+    // Set store button (only show on mobile devices)
+    if (storeBtn && storeTextEl && iconEl) {
+      if (storeUrl && isMobile()) {
+        storeBtn.href = storeUrl;
+        storeBtn.style.display = 'inline-flex';
+        if (isAndroid()) {
+          storeTextEl.textContent = 'Download from Play Store';
+          iconEl.className = 'fa-brands fa-google-play';
+        } else if (isIOS()) {
+          storeTextEl.textContent = 'Download from App Store';
+          iconEl.className = 'fa-brands fa-app-store-ios';
+        } else {
+          storeTextEl.textContent = 'Download App';
+          iconEl.className = 'fa-solid fa-download';
+        }
       } else {
-        storeTextEl.textContent = 'Download App';
-        iconEl.className = 'fa-solid fa-download';
+        // Hide store button on desktop or if no store URL
+        storeBtn.style.display = 'none';
       }
-    } else {
-      storeBtn.style.display = 'none';
     }
     
     // Set web button - ensure it's a valid absolute URL
@@ -182,31 +198,34 @@
       webBtn.href = absoluteWebUrl;
       webBtn.target = '_blank';
       webBtn.rel = 'noopener noreferrer';
-      // Ensure button is visible
+      // Ensure button is always visible
       webBtn.style.display = 'inline-flex';
     }
     
-    // Show modal
+    // Show modal with animation
     modal.classList.add('active');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
     
-    // Focus management
+    // Focus management for accessibility
     setTimeout(() => {
-      if (storeBtn && storeUrl) {
+      if (storeBtn && storeUrl && isMobile()) {
         storeBtn.focus();
       } else if (webBtn) {
         webBtn.focus();
+      } else if (modalClose) {
+        modalClose.focus();
       }
     }, 100);
     
-    // Close handlers
+    // Close modal function
     const closeModal = () => {
       modal.classList.remove('active');
       modal.setAttribute('aria-hidden', 'true');
       document.body.style.overflow = '';
     };
     
+    // Set up close handlers (remove old ones first to prevent duplicates)
     if (modalClose) {
       modalClose.onclick = closeModal;
     }
@@ -222,18 +241,24 @@
         document.removeEventListener('keydown', handleEscape);
       }
     };
+    // Remove old listener if exists, then add new one
+    document.removeEventListener('keydown', handleEscape);
     document.addEventListener('keydown', handleEscape);
     
-    // Clean up on button click - don't prevent default navigation
-    // Let the links work naturally (they have target="_blank" in HTML)
-    storeBtn.onclick = (e) => {
-      // Don't prevent default - let the link navigate
-      setTimeout(closeModal, 100);
-    };
-    webBtn.onclick = (e) => {
-      // Don't prevent default - let the link navigate
-      setTimeout(closeModal, 100);
-    };
+    // Set up button click handlers
+    if (storeBtn) {
+      storeBtn.onclick = (e) => {
+        // Don't prevent default - let the link navigate to store
+        setTimeout(closeModal, 100);
+      };
+    }
+    
+    if (webBtn) {
+      webBtn.onclick = (e) => {
+        // Don't prevent default - let the link navigate to web
+        setTimeout(closeModal, 100);
+      };
+    }
   };
 
   const getUsernameFromUrl = (url) => {
@@ -358,10 +383,14 @@
 
   /**
    * Open app with smart fallback to download modal or web
-   * Uses multiple detection methods to determine if app opened successfully
+   * MOBILE-FIRST APPROACH: On mobile, always try app first, then show modal if not installed
+   * Uses reliable detection methods optimized for Android and iOS
    * Handles both simple URLs and complex objects (for email with multiple fallbacks)
    */
   const openWithFallback = (appUrl, webUrl, platform = null) => {
+    // CRITICAL: Ensure platform is always available - extract from context if not provided
+    const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
+    
     // Handle email case where appUrl is an object with primary, fallback, and web
     let primaryUrl = appUrl;
     let fallbackUrl = null;
@@ -373,45 +402,15 @@
       finalWebUrl = appUrl.web || webUrl;
     }
     
-    // Note: We no longer use Intent URLs to avoid automatic browser redirect
-    // Direct app schemes are used instead, which fail silently if app not installed
+    // Ensure we have a valid web URL for fallback
+    const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
     
-    let didHide = false;
-    let didBlur = false;
+    // Track app opening state
+    let appOpened = false;
     let fallbackTimer = null;
     let visibilityTimer = null;
-    let attemptCount = 0;
-    const maxAttempts = 2; // Try primary, then fallback if available
     
-    const onHide = () => {
-      didHide = true;
-      cleanup();
-    };
-    
-    const onBlur = () => {
-      // On Android, blur can fire even if app doesn't open
-      // So we need to be more careful - only mark as blurred if page actually becomes hidden
-      // Don't immediately mark as success - wait to see if page becomes hidden
-      if (document.hidden) {
-        didBlur = true;
-        didHide = true;
-        cleanup();
-      } else {
-        // Page blurred but not hidden - might be false positive
-        // Set a short timer to check if page actually becomes hidden
-        visibilityTimer = setTimeout(() => {
-          if (document.hidden) {
-            didBlur = true;
-            didHide = true;
-            cleanup();
-          } else {
-            // False positive - page didn't actually hide, app didn't open
-            didBlur = false;
-          }
-        }, 300);
-      }
-    };
-    
+    // Cleanup function
     const cleanup = () => {
       if (fallbackTimer) {
         clearTimeout(fallbackTimer);
@@ -421,64 +420,93 @@
         clearTimeout(visibilityTimer);
         visibilityTimer = null;
       }
-      document.removeEventListener('visibilitychange', onVisibility, true);
-      window.removeEventListener('pagehide', onHide, true);
+      document.removeEventListener('visibilitychange', onVisibilityChange, true);
+      window.removeEventListener('pagehide', onPageHide, true);
       window.removeEventListener('blur', onBlur, true);
     };
     
-    const onVisibility = () => {
+    // Detection handlers - simplified and more reliable
+    const onVisibilityChange = () => {
       if (document.hidden) {
-        didHide = true;
+        appOpened = true;
         cleanup();
       }
     };
-
-    // Multiple detection methods for app opening
-    document.addEventListener('visibilitychange', onVisibility, true);
-    window.addEventListener('pagehide', onHide, true);
+    
+    const onPageHide = () => {
+      appOpened = true;
+      cleanup();
+    };
+    
+    const onBlur = () => {
+      // On Android, blur can fire even if app doesn't open
+      // Use a short delay to verify if page actually becomes hidden
+      visibilityTimer = setTimeout(() => {
+        if (document.hidden) {
+          appOpened = true;
+          cleanup();
+        }
+      }, 200);
+    };
+    
+    // Set up detection listeners BEFORE attempting to open app
+    document.addEventListener('visibilitychange', onVisibilityChange, true);
+    window.addEventListener('pagehide', onPageHide, true);
     window.addEventListener('blur', onBlur, true);
 
     /**
-     * Attempt to open URL (app or fallback)
-     * Uses improved method for better Android compatibility
+     * Attempt to open app URL using iframe method (more reliable on Android)
+     * This method doesn't navigate the page, allowing our timeout to work properly
      */
-    const attemptOpen = (url) => {
-      // For app schemes (instagram://, fb://, etc.), use window.location
-      // This is more reliable on Android - if app opens, page will blur/hide
-      // If app doesn't open, nothing happens and we can detect it
+    const attemptOpenApp = (url) => {
+      // For app schemes (instagram://, fb://, etc.), use iframe method
+      // This is more reliable on Android - doesn't navigate the page
       if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
-        // App scheme detected - try to open app
-        // On Android, this will either open the app (page blurs) or do nothing
         try {
-          // Store timestamp to detect if page actually navigated
-          const startTime = Date.now();
-          window.location.href = url;
+          // Method 1: Try iframe (most reliable, doesn't navigate page)
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.style.width = '1px';
+          iframe.style.height = '1px';
+          iframe.style.position = 'absolute';
+          iframe.style.left = '-9999px';
+          iframe.src = url;
+          document.body.appendChild(iframe);
           
-          // If we're still here after a short delay, app likely didn't open
-          // But we'll let the main timeout handle the detection
-        } catch (e) {
-          // If direct navigation fails, try creating a link
-          const link = document.createElement('a');
-          link.href = url;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
+          // Remove iframe after a short delay
           setTimeout(() => {
             try {
-              if (link.parentNode) {
-                document.body.removeChild(link);
+              if (iframe.parentNode) {
+                document.body.removeChild(iframe);
               }
             } catch (err) {
               // Ignore cleanup errors
             }
-          }, 100);
+          }, 1000);
+        } catch (e) {
+          // Fallback: Try link click method
+          try {
+            const link = document.createElement('a');
+            link.href = url;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+              try {
+                if (link.parentNode) {
+                  document.body.removeChild(link);
+                }
+              } catch (err) {
+                // Ignore cleanup errors
+              }
+            }, 100);
+          } catch (err) {
+            console.warn('Failed to open app URL:', err);
+          }
         }
       } else {
-        // For http/https/mailto URLs, use standard navigation
+        // For http/https/mailto URLs, use standard link click
         try {
-          window.location.href = url;
-        } catch (e) {
-          // If direct navigation fails, try creating a link
           const link = document.createElement('a');
           link.href = url;
           link.style.display = 'none';
@@ -493,83 +521,72 @@
               // Ignore cleanup errors
             }
           }, 100);
+        } catch (e) {
+          console.warn('Failed to open URL:', e);
         }
       }
     };
 
     // Attempt to open primary URL (app)
-    attemptOpen(primaryUrl);
+    attemptOpenApp(primaryUrl);
 
-    // Smart fallback timing: 
-    // - Desktop: Very short timeout (apps won't open, fail fast)
-    // - Mobile: Ultra-fast timeout for instant user feedback (1 second)
-    // - Optimized for best user experience - modal appears almost instantly
-    const fallbackDelay = isDesktop() ? 500 : (isIOS() ? 1000 : 1000);
+    // MOBILE-FIRST: Optimized timing for mobile devices
+    // - Mobile (Android/iOS): 1 second timeout (fast user feedback)
+    // - Desktop: 500ms timeout (apps won't open, fail fast)
+    const fallbackDelay = isMobile() ? 1000 : 500;
     
     fallbackTimer = window.setTimeout(() => {
       cleanup();
-      // CRITICAL: Check if app actually opened by verifying page is hidden
-      // On Android, blur events can fire even when app doesn't open
-      // So we check document.hidden as the definitive indicator
-      const appActuallyOpened = document.hidden || didHide;
       
-      // Only show modal/fallback if app didn't actually open
+      // CRITICAL: Check if app actually opened
+      // If app opened, page should be hidden or appOpened flag should be true
+      const appActuallyOpened = appOpened || document.hidden;
+      
       if (!appActuallyOpened) {
-        attemptCount++;
+        // App didn't open - show fallback
         
-        // For email: try mailto: fallback first
-        if (fallbackUrl && attemptCount === 1 && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
+        // For email: try mailto: fallback first (only on first attempt)
+        if (fallbackUrl && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
           // Try mailto: fallback (opens default email app)
-          attemptOpen(fallbackUrl);
+          attemptOpenApp(fallbackUrl);
           
           // Set another timer for final web fallback or modal
           setTimeout(() => {
-            // Check again if app opened
-            if (!document.hidden && !didHide) {
-              // Show download modal for email
-              showAppDownloadModal('email', finalWebUrl);
+            if (!document.hidden && !appOpened) {
+              // Mailto also didn't open - show download modal for email
+              if (detectedPlatform && isMobile()) {
+                showAppDownloadModal('email', urlToUse || finalWebUrl);
+              } else {
+                window.location.href = finalWebUrl;
+              }
             }
-          }, 1000); // Reduced to 1 second for faster response
+          }, 1000);
         } else {
-          // For social media or if mailto failed: show download modal
-          // Use passed platform parameter or extract from context
-          const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
-          
-          // CRITICAL FIX: Use original webUrl (not finalWebUrl) to ensure correct URL
-          // finalWebUrl might be modified for email, but for social media we want the original
-          const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
-          
-          if (detectedPlatform && isMobile()) {
-            // On mobile: show download modal with app store options
-            // CRITICAL: Always show modal on mobile when app doesn't open
+          // For social media: show download modal on mobile, redirect to web on desktop
+          if (isMobile() && detectedPlatform) {
+            // MOBILE-FIRST: Always show modal on mobile when app doesn't open
             showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
           } else {
-            // On desktop or no platform detected: go directly to web
-            window.location.href = finalWebUrl;
+            // Desktop: redirect to web directly
+            window.location.href = urlToUse || finalWebUrl;
           }
         }
-      } else {
-        // App opened successfully - no action needed
-        // Cleanup already handled by onHide/onBlur
       }
+      // If app opened successfully, cleanup already handled
     }, fallbackDelay);
     
-    // SAFETY NET: If for any reason the main timeout doesn't trigger the modal,
-    // add an additional timeout as a backup (only on mobile)
-    if (isMobile() && platform) {
-      const safetyNetDelay = fallbackDelay + 500; // 0.5 seconds after main timeout (ultra-fast backup)
+    // SAFETY NET: Backup timeout for mobile devices (ensures modal always shows)
+    // This is critical for Android where detection might be less reliable
+    if (isMobile() && detectedPlatform) {
+      const safetyNetDelay = fallbackDelay + 800; // 0.8 seconds after main timeout
       setTimeout(() => {
         // Double-check: if modal is not visible and page is still visible, show modal
         const modal = document.getElementById('app-download-modal');
         const isModalVisible = modal && modal.classList.contains('active');
         
-        if (!isModalVisible && !document.hidden && !didHide) {
-          // Modal didn't show and app didn't open - show it now
-          const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
-          const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
-          if (detectedPlatform) {
-            showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
-          }
+        if (!isModalVisible && !document.hidden && !appOpened) {
+          // Modal didn't show and app didn't open - show it now (safety net)
+          showAppDownloadModal(detectedPlatform, urlToUse || finalWebUrl);
         }
       }, safetyNetDelay);
     }
@@ -577,36 +594,43 @@
 
   /**
    * Extract platform from URL or context
+   * CRITICAL: This function must always return a valid platform to ensure modal shows correctly
    */
   const getPlatformFromContext = (webUrl, appUrl) => {
-    // Try to extract from webUrl
+    // Try to extract from webUrl first (most reliable)
     if (webUrl) {
-      if (webUrl.includes('instagram.com')) return 'instagram';
-      if (webUrl.includes('facebook.com')) return 'facebook';
-      if (webUrl.includes('twitter.com') || webUrl.includes('x.com')) return 'twitter';
-      if (webUrl.includes('linkedin.com')) return 'linkedin';
-      if (webUrl.includes('mail.google.com') || webUrl.includes('mailto:')) return 'email';
+      const urlLower = webUrl.toLowerCase();
+      if (urlLower.includes('instagram.com')) return 'instagram';
+      if (urlLower.includes('facebook.com')) return 'facebook';
+      if (urlLower.includes('twitter.com') || urlLower.includes('x.com')) return 'twitter';
+      if (urlLower.includes('linkedin.com')) return 'linkedin';
+      if (urlLower.includes('mail.google.com') || urlLower.includes('mailto:')) return 'email';
     }
     
-    // Try to extract from appUrl
+    // Try to extract from appUrl as fallback
     if (appUrl) {
       const urlStr = typeof appUrl === 'object' ? appUrl.primary : appUrl;
       if (urlStr) {
-        if (urlStr.includes('instagram')) return 'instagram';
-        if (urlStr.includes('facebook') || urlStr.includes('fb://')) return 'facebook';
-        if (urlStr.includes('twitter')) return 'twitter';
-        if (urlStr.includes('linkedin')) return 'linkedin';
-        if (urlStr.includes('gmail') || urlStr.includes('mailto')) return 'email';
+        const urlLower = urlStr.toLowerCase();
+        if (urlLower.includes('instagram')) return 'instagram';
+        if (urlLower.includes('facebook') || urlLower.includes('fb://')) return 'facebook';
+        if (urlLower.includes('twitter')) return 'twitter';
+        if (urlLower.includes('linkedin')) return 'linkedin';
+        if (urlLower.includes('gmail') || urlLower.includes('mailto')) return 'email';
       }
     }
     
+    // Return null if platform cannot be determined
+    // This should rarely happen if HTML attributes are correct
     return null;
   };
 
   /**
    * Handle click events on social links and email links
-   * Smart Priority: Try native app first (on all platforms) > Fallback to web browser
-   * Works on both desktop and mobile with intelligent fallback
+   * MOBILE-FIRST APPROACH: 
+   * - On Mobile: Try native app first → Show modal if not installed → Web fallback
+   * - On Desktop: Try native app first → Direct web fallback (no modal)
+   * Ensures consistent behavior across Android and iOS
    */
   const onClick = (e) => {
     // Support both social links and email links
@@ -615,12 +639,21 @@
     
     const webUrl = link.getAttribute('href');
     const platform = link.getAttribute('data-platform');
-    if (!webUrl || !platform) return;
-
-    // SMART APPROACH: Try app first on ALL platforms, then fallback to web
-    // This gives the best user experience - app if available, web if not
     
-    // For email: try app first, fallback to web (works on all platforms)
+    // CRITICAL: Validate required attributes
+    if (!webUrl || !platform) {
+      console.warn('Social link missing required attributes:', { webUrl, platform });
+      return;
+    }
+
+    // MOBILE-FIRST: On mobile, always try app first, then show modal if not installed
+    // On desktop, try app first, then redirect to web
+    
+    // Prevent default navigation - we'll handle it ourselves
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // For email: build app URL with fallback chain
     if (platform === 'email') {
       let appUrl = null;
       if (isAndroid()) {
@@ -646,16 +679,15 @@
       }
       
       if (appUrl) {
-        e.preventDefault();
-        e.stopPropagation();
         openWithFallback(appUrl, webUrl, platform);
-        return;
+      } else {
+        // If no app URL could be built, navigate to web URL
+        window.location.href = webUrl;
       }
-      // If no app URL could be built, let normal navigation happen
       return;
     }
 
-    // For social media: try app first on all platforms, fallback to web
+    // For social media: build app URL based on platform
     let appUrl = null;
     if (isAndroid()) {
       appUrl = buildAndroidDeepLink(platform, webUrl, link);
@@ -682,16 +714,13 @@
       }
     }
     
-    if (!appUrl) {
-      // If we can't build a reliable app URL, let normal navigation happen
-      return;
+    if (appUrl) {
+      // CRITICAL: Always pass platform to ensure modal shows correctly on mobile
+      openWithFallback(appUrl, webUrl, platform);
+    } else {
+      // If we can't build a reliable app URL, navigate to web URL directly
+      window.location.href = webUrl;
     }
-
-    // Prevent default navigation and try app first (works on all platforms)
-    // If app doesn't open, fallback mechanism will show download modal (mobile) or redirect to web (desktop)
-    e.preventDefault();
-    e.stopPropagation();
-    openWithFallback(appUrl, webUrl, platform);
   };
 
   document.addEventListener('click', onClick, true);
