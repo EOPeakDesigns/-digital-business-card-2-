@@ -1,17 +1,16 @@
 /**
  * Social Deep Links & Email App Links
- * MOBILE-FIRST: Smart app detection and seamless web fallback
+ * MOBILE-FIRST: User choice modal for social media, direct Gmail app for email
  * 
  * Strategy:
- * - Detect if app is installed within 1 second
- * - If app installed → Open app directly (NO modal)
- * - If app NOT installed → Open web immediately (NO modal)
+ * - Social Media: Always show modal with 2 options (Browser, App/Store)
+ * - Email: Always open Gmail app directly (no modal)
  * - Works seamlessly on smartphones, tablets, and desktop
  *
  * Notes:
  * - Uses direct app schemes for maximum reliability
- * - Ultra-fast detection (1 second max)
- * - No modals - direct action for best UX
+ * - App Store links for Android (Play Store) and iOS (App Store)
+ * - Gmail app opens with pre-filled subject and body
  */
 
 (() => {
@@ -50,6 +49,43 @@
     const androidUA = /Android/i.test(ua);
     const isDesktopBrowser = /Windows|Macintosh|Linux|X11/i.test(ua) && !/Mobile/i.test(ua);
     return androidUA && !isDesktopBrowser;
+  };
+
+  /**
+   * Get App Store URLs for each platform
+   * Returns Play Store (Android) or App Store (iOS) URLs
+   */
+  const getAppStoreUrl = (platform) => {
+    const storeUrls = {
+      instagram: {
+        android: 'https://play.google.com/store/apps/details?id=com.instagram.android',
+        ios: 'https://apps.apple.com/app/instagram/id389801252'
+      },
+      facebook: {
+        android: 'https://play.google.com/store/apps/details?id=com.facebook.katana',
+        ios: 'https://apps.apple.com/app/facebook/id284882215'
+      },
+      linkedin: {
+        android: 'https://play.google.com/store/apps/details?id=com.linkedin.android',
+        ios: 'https://apps.apple.com/app/linkedin/id288429040'
+      },
+      twitter: {
+        android: 'https://play.google.com/store/apps/details?id=com.twitter.android',
+        ios: 'https://apps.apple.com/app/twitter/id333903271'
+      }
+    };
+
+    const platformUrls = storeUrls[platform];
+    if (!platformUrls) return null;
+
+    if (isAndroid()) {
+      return platformUrls.android;
+    } else if (isIOS()) {
+      return platformUrls.ios;
+    } else {
+      // Desktop: Return Android Play Store by default
+      return platformUrls.android;
+    }
   };
 
   /**
@@ -99,14 +135,8 @@
         
         const subjectIOS = 'Contact from Digital Business Card';
         const bodyIOS = `Hello ${nameIOS || 'there'},\n\n`;
-        const gmailWebUrlIOS = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailIOS)}&su=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
-        const mailtoUrlIOS = `mailto:${encodeURIComponent(emailIOS)}?subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
         
-        return {
-          primary: `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`,
-          fallback: mailtoUrlIOS,
-          web: gmailWebUrlIOS
-        };
+        return `googlegmail://co?to=${encodeURIComponent(emailIOS)}&subject=${encodeURIComponent(subjectIOS)}&body=${encodeURIComponent(bodyIOS)}`;
       default:
         return null;
     }
@@ -146,291 +176,205 @@
         
         const subjectAndroid = 'Contact from Digital Business Card';
         const bodyAndroid = `Hello ${nameAndroid || 'there'},\n\n`;
-        const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailAndroid)}&su=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
-        const mailtoUrl = `mailto:${encodeURIComponent(emailAndroid)}?subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
         
-        return {
-          primary: `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`,
-          fallback: mailtoUrl,
-          web: gmailWebUrl
-        };
+        return `googlegmail://co?to=${encodeURIComponent(emailAndroid)}&subject=${encodeURIComponent(subjectAndroid)}&body=${encodeURIComponent(bodyAndroid)}`;
       default:
         return null;
     }
   };
 
   /**
-   * Extract platform from URL or context
+   * Get platform display name
    */
-  const getPlatformFromContext = (webUrl, appUrl) => {
-    if (webUrl) {
-      const urlLower = webUrl.toLowerCase();
-      if (urlLower.includes('instagram.com')) return 'instagram';
-      if (urlLower.includes('facebook.com')) return 'facebook';
-      if (urlLower.includes('twitter.com') || urlLower.includes('x.com')) return 'twitter';
-      if (urlLower.includes('linkedin.com')) return 'linkedin';
-      if (urlLower.includes('mail.google.com') || urlLower.includes('mailto:')) return 'email';
-    }
-    
-    if (appUrl) {
-      const urlStr = typeof appUrl === 'object' ? appUrl.primary : appUrl;
-      if (urlStr) {
-        const urlLower = urlStr.toLowerCase();
-        if (urlLower.includes('instagram')) return 'instagram';
-        if (urlLower.includes('facebook') || urlLower.includes('fb://')) return 'facebook';
-        if (urlLower.includes('twitter')) return 'twitter';
-        if (urlLower.includes('linkedin')) return 'linkedin';
-        if (urlLower.includes('gmail') || urlLower.includes('mailto')) return 'email';
-      }
-    }
-    
-    return null;
+  const getPlatformDisplayName = (platform) => {
+    const names = {
+      instagram: 'Instagram',
+      facebook: 'Facebook',
+      linkedin: 'LinkedIn',
+      twitter: 'X (Twitter)',
+      email: 'Gmail'
+    };
+    return names[platform] || platform;
   };
 
   /**
-   * Open app with smart web fallback
-   * MOBILE-FIRST: Ultra-reliable app detection within 1 second
-   * Priority: Mobile App First → Browser Fallback (NO modals)
-   * 
-   * Supported Platforms:
-   * - Instagram, Facebook, LinkedIn, X (Twitter), Gmail
-   * 
-   * Strategy:
-   * 1. Attempt to open mobile app
-   * 2. Detect if app opened (within 1 second)
-   * 3. If app opened → Done (app is open)
-   * 4. If app NOT opened → Open browser immediately
+   * Show app download modal for social media
+   * MOBILE-FIRST: Always shows modal with 2 options (Browser, App/Store)
    */
-  const openWithFallback = (appUrl, webUrl, platform = null) => {
-    const detectedPlatform = platform || getPlatformFromContext(webUrl, appUrl);
-    
-    // Handle email case where appUrl is an object with primary, fallback, and web
-    let primaryUrl = appUrl;
-    let fallbackUrl = null;
-    let finalWebUrl = webUrl;
-    
-    if (typeof appUrl === 'object' && appUrl.primary) {
-      primaryUrl = appUrl.primary;
-      fallbackUrl = appUrl.fallback;
-      finalWebUrl = appUrl.web || webUrl;
+  const showSocialMediaModal = (platform, webUrl, appUrl) => {
+    const modal = document.getElementById('app-download-modal');
+    if (!modal) {
+      console.warn('App download modal not found in DOM');
+      // Fallback: Open browser directly
+      window.location.href = webUrl;
+      return;
     }
-    
-    const urlToUse = (typeof appUrl === 'object' && appUrl.web) ? appUrl.web : webUrl;
-    
-    // MOBILE-FIRST: Enhanced detection system
-    // Track initial state BEFORE attempting to open app (critical for accurate detection)
-    const initialHiddenState = document.hidden;
-    const startTime = Date.now();
-    
-    // Track app opening state with multiple indicators
-    let appOpened = false;
-    let detectionConfirmed = false;
-    let fallbackTimer = null;
-    let visibilityTimer = null;
-    let detectionInterval = null;
-    
-    // Cleanup function - removes all listeners and timers
-    const cleanup = () => {
-      if (fallbackTimer) {
-        clearTimeout(fallbackTimer);
-        fallbackTimer = null;
-      }
-      if (visibilityTimer) {
-        clearTimeout(visibilityTimer);
-        visibilityTimer = null;
-      }
-      if (detectionInterval) {
-        clearInterval(detectionInterval);
-        detectionInterval = null;
-      }
-      document.removeEventListener('visibilitychange', onVisibilityChange, true);
-      window.removeEventListener('pagehide', onPageHide, true);
-      window.removeEventListener('blur', onBlur, true);
-    };
-    
-    // Enhanced detection function - checks multiple indicators
-    const checkIfAppOpened = () => {
-      if (detectionConfirmed) return true;
-      
-      const isHidden = document.hidden;
-      const wasHiddenAfterStart = isHidden && !initialHiddenState;
-      const timeElapsed = Date.now() - startTime;
-      
-      // CRITICAL: App opened if page became hidden AFTER we started AND within 1 second
-      // This ensures we only detect apps that actually opened, not pre-existing hidden state
-      const quickHide = wasHiddenAfterStart && timeElapsed < 1000; // Within 1 second
-      
-      if (quickHide) {
-        appOpened = true;
-        detectionConfirmed = true;
-        cleanup();
-        return true;
-      }
-      
-      return false;
-    };
-    
-    // Detection handlers - multiple methods for reliability
-    const onVisibilityChange = () => {
-      checkIfAppOpened();
-    };
-    
-    const onPageHide = () => {
-      // pagehide is definitive - app definitely opened
-      if (!detectionConfirmed) {
-        appOpened = true;
-        detectionConfirmed = true;
-        cleanup();
-      }
-    };
-    
-    const onBlur = () => {
-      // Validate blur with visibility check (blur can fire for other reasons)
-      visibilityTimer = setTimeout(() => {
-        if (!detectionConfirmed) {
-          checkIfAppOpened();
-        }
-        visibilityTimer = null;
-      }, 150); // Short delay for validation
-    };
-    
-    // Set up detection listeners BEFORE attempting to open app
-    document.addEventListener('visibilitychange', onVisibilityChange, true);
-    window.addEventListener('pagehide', onPageHide, true);
-    window.addEventListener('blur', onBlur, true);
-    
-    // MOBILE-FIRST: Continuous detection check (every 50ms for ultra-fast detection)
-    // This catches app opening even if events are delayed
-    detectionInterval = setInterval(() => {
-      if (checkIfAppOpened()) {
-        return; // App opened, stop checking
-      }
-      
-      // Stop checking after 1 second (main timeout will handle fallback)
-      const timeElapsed = Date.now() - startTime;
-      if (timeElapsed >= 1000) {
-        clearInterval(detectionInterval);
-        detectionInterval = null;
-      }
-    }, 50); // Check every 50ms for fastest detection
 
-    /**
-     * Attempt to open app URL
-     * MOBILE-FIRST: Uses window.location for reliable event triggering
-     * This method triggers proper visibility/blur events when app opens
-     */
-    const attemptOpenApp = (url) => {
-      if (!url) return;
-      
-      if (url.includes('://') && !url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('mailto:')) {
-        // App scheme (instagram://, fb://, etc.) - use window.location
-        // This triggers proper events for reliable detection
-        try {
-          window.location.href = url;
-        } catch (e) {
-          // Fallback: Try link click if window.location fails
-          try {
-            const link = document.createElement('a');
-            link.href = url;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => {
-              try {
-                if (link.parentNode) {
-                  document.body.removeChild(link);
-                }
-              } catch (err) {
-                // Ignore cleanup errors
-              }
-            }, 100);
-          } catch (err) {
-            console.warn('Failed to open app URL:', err);
-          }
-        }
-      } else {
-        // HTTP/HTTPS/MAILTO URLs - use standard link click
-        try {
-          const link = document.createElement('a');
-          link.href = url;
-          link.style.display = 'none';
-          document.body.appendChild(link);
-          link.click();
-          setTimeout(() => {
-            try {
-              if (link.parentNode) {
-                document.body.removeChild(link);
-              }
-            } catch (err) {
-              // Ignore cleanup errors
-            }
-          }, 100);
-        } catch (e) {
-          console.warn('Failed to open URL:', e);
-        }
-      }
+    const modalTitle = document.getElementById('app-download-modal-title');
+    const modalMessage = document.getElementById('app-download-message');
+    const storeBtn = document.getElementById('app-download-store-btn');
+    const storeBtnText = document.getElementById('app-download-store-text');
+    const storeBtnIcon = document.getElementById('app-download-store-icon');
+    const webBtn = document.getElementById('app-download-web-btn');
+    const closeBtn = modal.querySelector('.app-download-modal-close');
+
+    if (!modalTitle || !modalMessage || !storeBtn || !webBtn) {
+      console.warn('Modal elements not found');
+      window.location.href = webUrl;
+      return;
+    }
+
+    // Update modal content
+    const platformName = getPlatformDisplayName(platform);
+    modalTitle.textContent = `Open ${platformName}`;
+    modalMessage.textContent = `Choose how you'd like to open ${platformName}:`;
+
+    // Button 1: Open in Browser
+    webBtn.href = webUrl;
+    webBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeModal();
+      window.open(webUrl, '_blank', 'noopener,noreferrer');
     };
 
-    // MOBILE-FIRST: Attempt to open primary URL (mobile app)
-    // This is the first priority - try to open the native app
-    attemptOpenApp(primaryUrl);
-
-    // MOBILE-FIRST: 1 second timeout (ultra-fast detection as requested)
-    // - Mobile: 1000ms (1 second max - detects app existence)
-    // - Desktop: 500ms (apps won't open, fail fast to web)
-    const fallbackDelay = isMobile() ? 1000 : 500;
-    
-    fallbackTimer = window.setTimeout(() => {
-      cleanup();
-      
-      // CRITICAL: Final check if app actually opened
-      // Use multiple indicators for maximum reliability
-      const timeElapsed = Date.now() - startTime;
-      const isCurrentlyHidden = document.hidden && !initialHiddenState;
-      const wasHiddenQuickly = isCurrentlyHidden && timeElapsed < 1000; // Within 1 second
-      
-      // App opened if ANY of these are true:
-      // 1. Detection confirmed flag (strongest indicator)
-      // 2. App opened flag set by event handlers
-      // 3. Page became hidden quickly after we started
-      const appActuallyOpened = detectionConfirmed || appOpened || wasHiddenQuickly;
-      
-      if (!appActuallyOpened) {
-        // MOBILE-FIRST: App didn't open - open web browser immediately (NO modal)
-        // This provides seamless fallback - user gets content immediately
+    // Button 2: Open in App (or App Store if not installed)
+    const storeUrl = getAppStoreUrl(platform);
+    if (appUrl && storeUrl) {
+      // Try to open app, fallback to store if app not installed
+      storeBtnText.textContent = 'Open in App';
+      if (storeBtnIcon) {
+        storeBtnIcon.className = 'fa-solid fa-mobile-screen-button';
+      }
+      storeBtn.href = appUrl;
+      storeBtn.style.display = 'inline-flex'; // Ensure visible
+      storeBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeModal();
         
-        // For email: try mailto: fallback first (opens default email app)
-        if (fallbackUrl && typeof appUrl === 'object' && appUrl.primary && appUrl.primary.includes('googlegmail://')) {
-          // Only try mailto if primary Gmail app didn't open
-          if (!appOpened && !detectionConfirmed) {
-            attemptOpenApp(fallbackUrl);
-            
-            // Check if mailto opened within additional 1 second
-            setTimeout(() => {
-              const mailtoTimeElapsed = Date.now() - startTime;
-              const mailtoIsHidden = document.hidden && !initialHiddenState;
-              const mailtoOpened = mailtoIsHidden && mailtoTimeElapsed < 2000; // 2 seconds total
-              
-              if (!mailtoOpened && !appOpened && !detectionConfirmed) {
-                // Mailto also didn't open - open web browser immediately
-                window.location.href = urlToUse || finalWebUrl;
-              }
-            }, 1000);
-          }
-          // If primary app opened, skip fallback (already handled)
-        } else {
-          // For social media (Instagram, Facebook, LinkedIn, X/Twitter): 
-          // Open web browser immediately if app not installed
-          window.location.href = urlToUse || finalWebUrl;
+        // Attempt to open app
+        try {
+          window.location.href = appUrl;
+          
+          // If app doesn't open within 1 second, redirect to store
+          setTimeout(() => {
+            // Check if still on page (app didn't open)
+            if (document.visibilityState === 'visible') {
+              window.location.href = storeUrl;
+            }
+          }, 1000);
+        } catch (err) {
+          // If error, go to store
+          window.location.href = storeUrl;
         }
+      };
+    } else if (storeUrl) {
+      // No app URL, just show store button
+      storeBtnText.textContent = 'Download App';
+      if (storeBtnIcon) {
+        storeBtnIcon.className = 'fa-solid fa-download';
       }
-      // If app opened successfully, cleanup already handled - no action needed
-    }, fallbackDelay);
+      storeBtn.href = storeUrl;
+      storeBtn.style.display = 'inline-flex'; // Ensure visible
+      storeBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeModal();
+        window.open(storeUrl, '_blank', 'noopener,noreferrer');
+      };
+    } else {
+      // No store URL available, hide store button
+      storeBtn.style.display = 'none';
+    }
+
+    // Close button handler
+    const closeModal = () => {
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    };
+
+    if (closeBtn) {
+      closeBtn.onclick = closeModal;
+    }
+
+    // Close on overlay click
+    const overlay = modal.querySelector('.app-download-modal-overlay');
+    if (overlay) {
+      overlay.onclick = closeModal;
+    }
+
+    // Close on Escape key
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('active')) {
+        closeModal();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+
+    // Show modal
+    modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+
+    // Focus management for accessibility
+    storeBtn.focus();
+  };
+
+  /**
+   * Open Gmail app directly (no modal)
+   * MOBILE-FIRST: Always opens Gmail app with pre-filled subject and body
+   */
+  const openGmailApp = (link) => {
+    const email = link?.getAttribute?.('data-email') || '';
+    const name = link?.getAttribute?.('data-name') || '';
+    
+    if (!email) {
+      console.warn('Email address not found');
+      return;
+    }
+
+    const subject = 'Contact from Digital Business Card';
+    const body = `Hello ${name || 'there'},\n\n`;
+    
+    let gmailUrl = null;
+    
+    if (isAndroid()) {
+      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else if (isIOS()) {
+      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      // Desktop: Try Gmail app scheme (may not work, but try anyway)
+      gmailUrl = `googlegmail://co?to=${encodeURIComponent(email)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
+    if (gmailUrl) {
+      try {
+        window.location.href = gmailUrl;
+        
+        // Fallback: If Gmail app doesn't open, try mailto: after 1 second
+        setTimeout(() => {
+          if (document.visibilityState === 'visible') {
+            // Gmail app didn't open, try mailto:
+            const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailtoUrl;
+          }
+        }, 1000);
+      } catch (err) {
+        // If error, try mailto:
+        const mailtoUrl = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        window.location.href = mailtoUrl;
+      }
+    }
   };
 
   /**
    * Handle click events on social links and email links
-   * MOBILE-FIRST: Try app first → Open web immediately if not installed
+   * MOBILE-FIRST: 
+   * - Social Media → Show modal with Browser/App options
+   * - Email → Open Gmail app directly
    */
   const onClick = (e) => {
     const link = e.target?.closest?.('.social-link, .email-link');
@@ -448,41 +392,15 @@
     e.preventDefault();
     e.stopPropagation();
     
-    // For email: build app URL with fallback chain
+    // EMAIL: Always open Gmail app directly (no modal)
     if (platform === 'email') {
-      let appUrl = null;
-      if (isAndroid()) {
-        appUrl = buildAndroidDeepLink(platform, webUrl, link);
-      } else if (isIOS()) {
-        appUrl = buildIOSDeepLink(platform, webUrl, link);
-      } else {
-        // Desktop/Other: Try Gmail app scheme
-        const emailDesktop = link?.getAttribute?.('data-email') || '';
-        const nameDesktop = link?.getAttribute?.('data-name') || '';
-        if (emailDesktop) {
-          const subjectDesktop = 'Contact from Digital Business Card';
-          const bodyDesktop = `Hello ${nameDesktop || 'there'},\n\n`;
-          const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailDesktop)}&su=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`;
-          const mailtoUrl = `mailto:${encodeURIComponent(emailDesktop)}?subject=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`;
-          
-          appUrl = {
-            primary: `googlegmail://co?to=${encodeURIComponent(emailDesktop)}&subject=${encodeURIComponent(subjectDesktop)}&body=${encodeURIComponent(bodyDesktop)}`,
-            fallback: mailtoUrl,
-            web: gmailWebUrl
-          };
-        }
-      }
-      
-      if (appUrl) {
-        openWithFallback(appUrl, webUrl, platform);
-      } else {
-        window.location.href = webUrl;
-      }
+      openGmailApp(link);
       return;
     }
 
-    // For social media: build app URL based on platform
+    // SOCIAL MEDIA: Always show modal with Browser/App options
     let appUrl = null;
+    
     if (isAndroid()) {
       appUrl = buildAndroidDeepLink(platform, webUrl, link);
     } else if (isIOS()) {
@@ -508,12 +426,10 @@
       }
     }
     
-    if (appUrl) {
-      openWithFallback(appUrl, webUrl, platform);
-    } else {
-      window.location.href = webUrl;
-    }
+    // Show modal with Browser/App options
+    showSocialMediaModal(platform, webUrl, appUrl);
   };
 
+  // Attach click handler
   document.addEventListener('click', onClick, true);
 })();
