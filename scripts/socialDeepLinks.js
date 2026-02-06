@@ -1,21 +1,21 @@
 /**
- * Device-aware actions for Social + Email buttons (vanilla JS)
+ * Platform-agnostic action system for Social + Email buttons (vanilla JS)
  *
- * Goals (behavior-first, no UI):
- * - Social media:
- *   - Mobile: prefer native app opening without showing errors; fall back to web gracefully
- *   - Desktop: open web in a new tab (noopener/noreferrer)
- *   - In-app browsers: avoid fragile deep-link tricks; use web navigation
- * - Email:
- *   - Mobile (including installed PWA): open the default mail app via properly encoded mailto:
- *   - Desktop: open mail client (mailto:) or existing web compose URL in a new tab
+ * Core philosophy (behavior-first, UI-agnostic):
+ * - Prefer HTTPS links and let the OS/browser decide which app (if any) handles them
+ * - Do NOT force native apps (no package forcing, no private/undocumented URI schemes)
+ * - Use deep links ONLY when officially documented and stable — by default this module
+ *   avoids deep links for social platforms to preserve OS intent resolution + app choosers.
  *
- * Integration:
- * - Social links: <a class="social-link" data-platform="instagram|facebook|linkedin|twitter" href="https://...">
- * - Email link:  <a class="email-link"  data-platform="email" data-email="name@domain.com" data-name="Full Name" href="https://mail.google.com/...">
+ * Behavior requirements:
+ * - Desktop: open external links in a new tab (noopener, noreferrer)
+ * - Mobile: same-tab navigation (works for QR opened pages + installed PWAs)
+ * - In-app browsers (Instagram/Facebook/WhatsApp webviews): avoid popups; same-tab HTTPS
+ * - Email: mobile uses default mail app via mailto:, desktop uses mailto: or existing web compose URL
  *
- * Important:
- * - This file intentionally avoids modals/toasts/alerts and does not alter layout/styling.
+ * Integration (no markup changes required if you already have these):
+ * - Social: <a class="social-link" data-platform="instagram|facebook|..." href="https://...">
+ * - Email:  <a class="email-link"  data-platform="email" data-email="name@domain.com" data-name="Full Name" href="https://mail.google.com/...">
  */
 
 (() => {
@@ -58,89 +58,85 @@
 
   /** Same-tab navigation helper (mobile + in-app browser safe default). */
   const navigateSameTab = (url) => {
-    window.location.href = url;
+    // Use assign() (keeps consistent navigation behavior, allows back button).
+    window.location.assign(url);
   };
 
-  /** Extract platform from link attribute (preferred) or from URL as fallback. */
+  /**
+   * Platform rules configuration (easy to extend)
+   * - Primary is always HTTPS for social platforms
+   * - `hosts` are only used for inference when `data-platform` is missing
+   */
+  const PLATFORM_RULES = {
+    facebook: { hosts: ['facebook.com', 'www.facebook.com', 'm.facebook.com'] },
+    instagram: { hosts: ['instagram.com', 'www.instagram.com', 'm.instagram.com'] },
+    linkedin: { hosts: ['linkedin.com', 'www.linkedin.com'] },
+    twitter: { hosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'] },
+    whatsapp: { hosts: ['wa.me', 'api.whatsapp.com', 'chat.whatsapp.com'] },
+    telegram: { hosts: ['t.me', 'telegram.me'] },
+    youtube: { hosts: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'] },
+    tiktok: { hosts: ['tiktok.com', 'www.tiktok.com'] },
+    snapchat: { hosts: ['snapchat.com', 'www.snapchat.com'] },
+    email: { hosts: [] }
+  };
+
+  /** Normalize a URL to HTTPS when possible (never invent non-HTTPS deep links). */
+  const normalizeHttpsUrl = (rawUrl) => {
+    if (!rawUrl) return '';
+    try {
+      // Allow mailto/tel/etc unchanged.
+      if (/^(mailto:|tel:|sms:)/i.test(rawUrl)) return rawUrl;
+      const u = new URL(rawUrl, window.location.href);
+      if (u.protocol === 'http:') u.protocol = 'https:';
+      // Keep https/data-platform link as-is.
+      return u.toString();
+    } catch {
+      return rawUrl;
+    }
+  };
+
+  /** Extract platform from data attribute (preferred) or infer from hostname. */
   const getPlatform = (link) => {
-    const p = link?.getAttribute?.('data-platform') || '';
-    if (p) return p;
+    const explicit = (link?.getAttribute?.('data-platform') || '').trim().toLowerCase();
+    if (explicit) return explicit;
+
     const href = link?.getAttribute?.('href') || '';
-    const h = href.toLowerCase();
-    if (h.includes('instagram.com')) return 'instagram';
-    if (h.includes('facebook.com')) return 'facebook';
-    if (h.includes('linkedin.com')) return 'linkedin';
-    if (h.includes('twitter.com') || h.includes('x.com')) return 'twitter';
-    if (h.includes('mailto:') || h.includes('mail.google.com')) return 'email';
+    try {
+      const u = new URL(href, window.location.href);
+      const host = (u.hostname || '').toLowerCase();
+      for (const [platform, rule] of Object.entries(PLATFORM_RULES)) {
+        if (!rule.hosts?.length) continue;
+        if (rule.hosts.some((h) => h === host || host.endsWith(`.${h}`))) return platform;
+      }
+    } catch {
+      // ignore
+    }
     return '';
   };
 
   /**
-   * Android intent URL builder for HTTPS links.
-   * This is the most reliable way (on Android Chrome) to:
-   * - Open native app when installed (via package)
-   * - Fall back to web URL when not installed (browser_fallback_url)
-   *
-   * We only use this when NOT in an in-app browser to prevent webview breakage.
+   * Centralized action resolver (single source of truth)
+   * - Social: HTTPS same-tab on mobile, HTTPS new-tab on desktop
+   * - Email: mailto: on mobile (default mail app), desktop uses web compose in new tab if provided
    */
-  const ANDROID_PACKAGES = {
-    instagram: 'com.instagram.android',
-    facebook: 'com.facebook.katana',
-    linkedin: 'com.linkedin.android',
-    twitter: 'com.twitter.android'
-  };
+  const resolveAndOpenExternalUrl = (rawUrl) => {
+    const url = normalizeHttpsUrl(rawUrl);
+    if (!url) return;
 
-  const buildAndroidIntentForWebUrl = (webUrl, platform) => {
-    const pkg = ANDROID_PACKAGES[platform];
-    if (!pkg) return null;
-
-    try {
-      const u = new URL(webUrl);
-      const scheme = (u.protocol || 'https:').replace(':', '') || 'https';
-      const noProto = `${u.host}${u.pathname}${u.search}${u.hash}`;
-      const fallback = encodeURIComponent(webUrl);
-      return `intent://${noProto}#Intent;scheme=${scheme};package=${pkg};S.browser_fallback_url=${fallback};end`;
-    } catch {
-      return null;
-    }
-  };
-
-  /**
-   * Social behavior:
-   * - Desktop: new tab to web.
-   * - Mobile in-app browser: same-tab to web (avoid deep link tricks).
-   * - Mobile normal browser:
-   *   - Android: intent:// (native if installed, web if not).
-   *   - iOS: universal links via https (opens app if installed, otherwise web).
-   */
-  const handleSocialAction = (link) => {
-    const webUrl = link.getAttribute('href');
-    const platform = getPlatform(link);
-    if (!webUrl) return;
-
-    // Desktop: always web in a new tab.
-    if (isDesktop()) {
-      openNewTabSafe(webUrl);
-      return;
-    }
-
-    // In-app browsers: avoid intent/custom scheme; go web directly.
+    // In-app browsers: popups are unreliable; always same-tab.
     if (isInAppBrowser()) {
-      navigateSameTab(webUrl);
+      navigateSameTab(url);
       return;
     }
 
-    // Android: try intent (native-first with built-in web fallback).
-    if (isAndroid()) {
-      const intentUrl = buildAndroidIntentForWebUrl(webUrl, platform);
-      if (intentUrl) {
-        navigateSameTab(intentUrl);
-        return;
-      }
-    }
+    // Desktop: new tab. Mobile: same tab.
+    if (isDesktop()) openNewTabSafe(url);
+    else navigateSameTab(url);
+  };
 
-    // iOS + everything else: rely on universal/app links (webUrl).
-    navigateSameTab(webUrl);
+  const handleSocialAction = (link) => {
+    const href = link?.getAttribute?.('href') || '';
+    resolveAndOpenExternalUrl(href);
   };
 
   /** Build a properly encoded mailto URL (default mail app, not Gmail-specific). */
@@ -161,7 +157,7 @@
    *   - Otherwise, use mailto:.
    *
    * Notes:
-   * - We do NOT force Gmail app. We intentionally avoid googlegmail:// schemes.
+   * - We do NOT force Gmail app. We intentionally avoid vendor-specific deep links.
    */
   const handleEmailAction = (link) => {
     const email = link?.getAttribute?.('data-email') || '';
@@ -184,7 +180,7 @@
     if (isDesktop()) {
       // If the existing href is a web compose page (gmail/webmail), respect it.
       if (/^https?:\/\//i.test(href)) {
-        openNewTabSafe(href);
+        openNewTabSafe(normalizeHttpsUrl(href));
         return;
       }
       // Otherwise, use mailto (desktop mail client).
@@ -194,6 +190,7 @@
 
     // Mobile: default mail app (PWA-safe).
     // In in-app browsers, mailto may be blocked; we still attempt mailto first (no UI, no alerts).
+    // Mobile: mailto triggers the default mail handler. This is the most reliable PWA + Safari behavior.
     navigateSameTab(mailtoUrl);
   };
 
@@ -216,7 +213,7 @@
 
     // Our actions replace default navigation.
     e.preventDefault();
-    e.stopPropagation();
+    // Do not stop propagation: other components (analytics, etc.) might rely on bubbling.
 
     if (platform === 'email' || link.classList.contains('email-link')) {
       handleEmailAction(link);
@@ -236,8 +233,10 @@
     isIOS,
     isAndroid,
     isInAppBrowser,
-    buildAndroidIntentForWebUrl,
+    PLATFORM_RULES,
+    normalizeHttpsUrl,
     buildMailtoUrl,
+    resolveAndOpenExternalUrl,
     handleSocialAction,
     handleEmailAction
   };
