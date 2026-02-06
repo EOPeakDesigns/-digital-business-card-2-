@@ -47,12 +47,32 @@
 
   /** Open a URL in a new tab with safe security flags (desktop behavior). */
   const openNewTabSafe = (url) => {
+    // CRITICAL: Desktop must NOT navigate the current tab.
+    // Use an <a target="_blank" rel="noopener noreferrer"> click which is both
+    // user-gesture friendly and does not risk a same-tab fallback.
     try {
-      const w = window.open(url, '_blank', 'noopener,noreferrer');
-      // If blocked, fall back to same-tab navigation (still safe).
-      if (!w) window.location.href = url;
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      // Cleanup (do not block navigation).
+      setTimeout(() => {
+        try {
+          a.remove();
+        } catch {
+          // ignore
+        }
+      }, 0);
     } catch {
-      window.location.href = url;
+      // Last resort: attempt window.open without any same-tab fallback.
+      try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } catch {
+        // If everything is blocked, fail silently (requirement: never replace current page).
+      }
     }
   };
 
@@ -211,11 +231,42 @@
     const platform = getPlatform(link);
     if (!platform) return;
 
-    // Our actions replace default navigation.
-    e.preventDefault();
-    // Do not stop propagation: other components (analytics, etc.) might rely on bubbling.
+    /**
+     * IMPORTANT BEHAVIOR RULES:
+     * - Social links on MOBILE: do NOT preventDefault; allow the browser/OS to resolve
+     *   app links and app choosers from the raw HTTPS click (best for multiple app variants).
+     * - Social links on DESKTOP: fully intercept and open ONLY in a new tab.
+     * - Email: intercept to generate a correctly encoded mailto: with subject/body (mobile),
+     *   while preserving desktop behavior (web compose in new tab if provided).
+     */
 
-    if (platform === 'email' || link.classList.contains('email-link')) {
+    const isEmail = platform === 'email' || link.classList.contains('email-link');
+    const isSocial = link.classList.contains('social-link') && !isEmail;
+
+    if (isSocial && !isDesktop()) {
+      // MOBILE (and mobile webviews): Let the default HTTPS navigation happen.
+      // This is the most OS-friendly path for universal/app links and app choosers.
+      //
+      // Optional progressive enhancement: normalize http->https once, without changing UI.
+      // (Only if the href is explicitly http.)
+      const rawHref = link.getAttribute('href') || '';
+      const normalized = normalizeHttpsUrl(rawHref);
+      if (normalized && normalized !== rawHref && /^http:\/\//i.test(rawHref)) {
+        link.setAttribute('href', normalized);
+      }
+      return;
+    }
+
+    // From here on, we are intercepting default navigation.
+    e.preventDefault();
+    // Desktop double-navigation fix: stop propagation so no other handlers can re-navigate.
+    e.stopPropagation();
+    // Some environments support stopImmediatePropagation; use it to be extra safe.
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
+
+    if (isEmail) {
       handleEmailAction(link);
       return;
     }
